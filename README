@@ -1,0 +1,64 @@
+TASK_SCHEDULE(1)      User Contributed Perl Documentation     TASK_SCHEDULE(1)
+
+
+
+NNAAMMEE
+       task_schedule.pl - Run a set of tasks at predetermined intervals ala
+       crontab.
+
+SSYYNNOOPPSSIISS
+       task_schedule.pl -config <config_file> [options]
+
+OOPPTTIIOONNSS
+       --ccoonnffiigg <<ccoonnffiigg__ffiillee>
+               This option is mandatory and gives the name of a file contain-
+               ing the task scheduler configuration.  This file specifies the
+               jobs to be run, email addresses for alerts, and all other pro-
+               gram options.  The test config file (t/data/test.config) has
+               further documentation.
+
+       --lloouudd   Show exactly what task_schedule is doing
+
+       --nnoo--eemmaaiill
+               Print error alerts but do not actually send emails.
+
+       --ffaasstt <<ttiimmee>
+               For development and testing, ignore task cron specifications
+               and instead run each job every <time> seconds.
+
+       ----hheellpp  print this usage and exit.
+
+DDEESSCCRRIIPPTTIIOONN
+       TTaasskk__sscchheedduullee is a tool to run various jobs at regular intervals in the
+       manner of crontab.  This tool runs jobs, captures job output in log
+       files and make sure jobs finish in a timely manner.  Alerts are sent to
+       an email list if any severe errors occur.
+
+       The tool can be run interactively for development purposes, but in a
+       production environment it is intended to be run as a regular cron job
+       which is scheduled every minute.  If ttaasskk__sscchheedduullee detects that an
+       instance is already successfully running then it simply quits.  This
+       ensures maximum reliability in case of temporary hardware issues or
+       reboots.
+
+       To detect another instance of running jobs, ttaasskk__sscchheedduullee looks at a
+       "heartbeat" file that is touched every minute.  If the file is older
+       than a specified age (typically 200 seconds) then the jobs are not run-
+       ning and ttaasskk__sscchheedduullee begins.  Note that the heartbeat file is spe-
+       cific to the particular configuration, so there can be multiple sets of
+       jobs running as long as none of the files collide.
+
+       TTaasskk__sscchheedduullee can be shut down gracefully by deleting its heartbeat
+       file.  (If you think suddenly finding yourself without a heartbeat
+       could be graceful).
+
+       EEXXAAMMPPLLEE
+
+        /proj/sot/tst/bin/task_schedule.pl -config TST.config
+
+AAUUTTHHOORR
+       Tom Aldcroft (taldcroft@cfa.harvard.edu)
+
+
+
+perl v5.8.3                       2005-01-07                  TASK_SCHEDULE(1)
