@@ -392,10 +392,66 @@ sets of jobs running as long as none of the files collide.
 B<Task_schedule> can be shut down gracefully by deleting its heartbeat file.  (If you
 think suddenly finding yourself without a heartbeat could be graceful).  
 
-=head2 EXAMPLE
+=head1 EXAMPLE
 
  /proj/sot/ska/bin/task_schedule.pl -config my_task.config
 
+=head1 EXAMPLE CONFIG FILE
+
+ # Configuration file for watch_cron_logs operation in TST area
+
+ loud         0                       # Run loudly
+ subject      TST tasks               # subject of email
+ timeout      1000                    # Default tool timeout
+ heartbeat_timeout 120                # Maximum age of heartbeat file (seconds)
+
+ # Data files and directories.  The *_dir vars can have $ENV{} vars which
+ # get interpolated.  (Note lack of task name after TST_DATA because this is just for test).
+
+ data_dir     $ENV{SKA_DATA}          # Data file directory
+ log_dir      $ENV{SKA_DATA}/Logs     # Log file directory
+ bin_dir      $ENV{SKA_BIN}           # Bin dir (optional, see task def'n)
+ master_log   Master.log              # Composite master log (created in log_dir)
+ heartbeat    heartbeat		     # File to ensure sched. running (in data_dir)
+
+ # Email addresses that receive an alert if there was a severe error in
+ # running jobs (i.e. couldn't start jobs or couldn't open log file).
+ # Processing errors *within* the jobs are caught with watch_cron_logs
+
+ alert	     first_person@head.cfa.harvard.edu
+ alert	     another_person@head.cfa.harvard.edu
+
+ # Define task parameters
+ #  cron: Job repetition specification ala crontab
+ #  exec: Name of executable.  Can have $ENV{} vars which get interpolated.  
+ #        If bin_dir is defined then bin_dir is prepended to non-absolute exec names.
+ #  log: Name of log.  Can have $ENV{} vars which get interpolated.
+ #        If log is set to '' then no log file will be created
+ #        If log is not defined it is set to <task_name>.log.
+ #        If log_dir is defined then log_dir is prepended to non-absolute log names.
+ #  timeout: Maximum time (seconds) for job before timing out
+
+ # # Task that isn't found, generating email
+  <task task1>
+        cron * * * * *
+        exec task1.pl 20
+        log  task1_with_nonstandard.log
+        timeout 15
+  </task>
+
+ # This has multiple jobs which get run in specified order
+ # Note the syntax 'exec <number> : cmd', which means that the given command is
+ # executed only once for each <number> of times the task is executed.  In the
+ # example below, the commands are done once each 1, 2, and 4 minutes, respectively.
+
+ <task task2>
+       cron * * * * *
+       exec task1.pl 1
+       exec 2 : $ENV{SKA_BIN}/task1.pl 2
+       exec 4 : task1.pl 3
+       timeout 100
+ </task>
+  
 =head1 AUTHOR
 
 Tom Aldcroft (taldcroft@cfa.harvard.edu)
