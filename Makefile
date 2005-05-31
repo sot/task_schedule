@@ -2,7 +2,7 @@
 TASK = task_schedule
 
 # Uncomment the correct choice indicating either SKA or TST flight environment
-FLIGHT_ENV = TST
+FLIGHT_ENV = SKA
 
 # Set the names of all files that get installed
 BIN = task_schedule.pl

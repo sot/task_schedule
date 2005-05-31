@@ -1,4 +1,5 @@
-#!/usr/bin/env /proj/axaf/bin/perl
+#!/usr/bin/env /proj/sot/ska/bin/perlska
+# #!/usr/bin/env /proj/axaf/bin/perl
 
 ##***************************************************************************
 # Schedule a set a tasks
@@ -65,12 +66,16 @@ if ($opt{heartbeat} !~ m|\A \s* /|x and $opt{data_dir}) {
 dbg "heartbeat=$opt{heartbeat}";
 
 while (my ($name, $task) = each %{$opt{task}}) {
-    $task->{exec} = $safe->reval(qq/"$task->{exec}"/);
+    $task->{exec} = parse_exec($task->{exec});
+#    for ((ref $task->{exec} eq "ARRAY") ? @{$task->{exec}} : ($task->{exec})) {
+    foreach (@{$task->{exec}}) {
+	$_->{cmd} = $safe->reval(qq/"$_->{cmd}"/);
 
-    # If (after interpolation) the exec isn't an absolute path
-    # and there is a bin_dir defined, then prepend that to path
-    if ($task->{exec} !~ m|\A \s* /|x and $opt{bin_dir}) {
-	$task->{exec} = "$opt{bin_dir}/$task->{exec}";
+	# If (after interpolation) the exec isn't an absolute path
+	# and there is a bin_dir defined, then prepend that to path
+	if (not $_->{cmd} =~ m|\A \s* /|x and $opt{bin_dir}) {
+	    $_->{cmd} = "$opt{bin_dir}/$_->{cmd}";
+	}
     }
 
     # Do the same for the log file, except that a value of undef
@@ -119,6 +124,7 @@ our $cron = new Schedule::Cron(sub {});
 
 while (my ($name, $task) = each %{$opt{task}}) {
     my $next_time = next_time($task->{cron});
+    
     push @crontab, {cron  => $task->{cron},
 		    exec  => $task->{exec},
 		    loud     => $opt{loud},
@@ -145,6 +151,9 @@ while (-r $opt{heartbeat}) {
 	if ($time >= $cronjob->{next_time}) {
 	    if ($pid = fork) {
 		$cronjob->{next_time} = next_time($cronjob->{cron});
+		foreach (@{$cronjob->{exec}}) {
+		    $_->{count} = ++$_->{count} % $_->{repeat_count};
+		}
 	    } else {
 		my $error = run($cronjob->{exec},
 				map { $_ => $cronjob->{$_} } qw(loud timeout log)
@@ -162,6 +171,29 @@ while (-r $opt{heartbeat}) {
 send_alert("Quit because of lost heartbeat");
 
 ##***************************************************************************
+sub parse_exec {
+##***************************************************************************
+    my $cmds = shift;
+    local $_;
+    my @cmds = (ref $cmds eq "ARRAY") ? @{$cmds} : ($cmds);
+    my @cmds_out;
+    foreach (@cmds) {
+	my $repeat_count = 1;
+	my $cmd = $_;
+	dbg "cmd = $_\n";
+	if (/\A \s* (\d+) \s* : \s* (.+) \Z/x) {
+	    $repeat_count = $1;
+	    $cmd = $2;
+	    dbg "repeat count, cmd = $repeat_count '$cmd'\n";
+	}
+	push @cmds_out, { cmd => $cmd,
+			  count => 0,
+			  repeat_count => $repeat_count };
+    }
+    return \@cmds_out;
+}
+
+##***************************************************************************
 sub send_alert {
 ##***************************************************************************
     my $alert_message = shift;
@@ -171,8 +203,8 @@ sub send_alert {
 
     my $message = "Severe processing error:\n $alert_message\n";
 
-    # If not dry run then do mail command else just print errors to stdout
-    unless ($opt{dryrun}) {
+    # If specified then do mail command else just print errors to stdout
+    if ($opt{email}) {
 	open MAIL, "| $mail_cmd"
 	  or die "Could not start mail to send alert notification";
 	print MAIL $message;
@@ -194,14 +226,13 @@ sub next_time {
 ##***************************************************************************
 sub run {
 ##***************************************************************************
-    my $cmd = shift;
+    my $cmds = shift;
     my $cmd_pid;
-    my ($cmd_root) = split ' ', $cmd;
+    my $cmd_root;
     my $LOG_FH;
 
     # Set up run parameters, including optional params spec'd after cmd
     my %par = (loud => 1,
-	       cmd  => $cmd,
 	       @_
 	      );
 
@@ -219,15 +250,22 @@ sub run {
 			       }; # NB: \n required
 
 	alarm $par{timeout} if $par{timeout};
+
+	# Set up commands to run.  Arg to run() can be either a command or an
+	# reference to a list of commands
+	my @cmds = (ref $cmds eq "ARRAY") ? @{$cmds} : ($cmds);
+	for my $cmd (@cmds) {
+	    next unless ($cmd->{count} == 0);
+	    ($cmd_root) = split ' ', $cmd->{cmd};
+	    dbg "Running $cmd->{cmd} $cmd->{count} $cmd->{repeat_count}";
+	    $cmd_pid = open CMD, "$cmd->{cmd} 2>&1 |" or die "ERROR - Could not start $cmd_root command\n";
 	
-	dbg "Running $cmd";
-	$cmd_pid = open CMD, "$cmd 2>&1 |" or die "ERROR - Could not start $cmd_root command\n";
-	
-	while (<CMD>) {
-	    dbg $_;
-	    print $LOG_FH $_;
+	    while (<CMD>) {
+		dbg $_;
+		print $LOG_FH $_;
+	    }
+	    close CMD;
 	}
-	close CMD;
 
 	alarm 0;
     };
@@ -356,7 +394,7 @@ think suddenly finding yourself without a heartbeat could be graceful).
 
 =head2 EXAMPLE
 
- /proj/sot/tst/bin/task_schedule.pl -config TST.config
+ /proj/sot/ska/bin/task_schedule.pl -config my_task.config
 
 =head1 AUTHOR
 
