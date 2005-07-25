@@ -157,7 +157,6 @@ while (-r $opt{heartbeat}) {
 		    $_->{count} = ++$_->{count} % $_->{repeat_count};
 		}
 	    } else {
-		print Dumper $cronjob;
 		my $error = run($cronjob->{exec},
 				map { $_ => $cronjob->{$_} } qw(loud timeout log context)
 			       );
@@ -266,7 +265,6 @@ sub run {
 	
 	    while (<CMD>) {
 		dbg $_;
-		dbg "context = $par{context}\n";
 		if ($first_output and $par{context}) {
 		    print $LOG_FH "\n", '#'x60, "\n", " $cmd->{cmd}\n", '#'x60, "\n";
 		    $first_output = 0;
