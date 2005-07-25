@@ -19,6 +19,7 @@ use Schedule::Cron;
 use IO::File;
 use subs qw(dbg);
 use CXC::Envs::Flight;
+use POSIX qw(strftime);
  
 ##***************************************************************************
 ##   Some initialization
@@ -127,6 +128,7 @@ while (my ($name, $task) = each %{$opt{task}}) {
     
     push @crontab, {cron  => $task->{cron},
 		    exec  => $task->{exec},
+		    context => $task->{context},
 		    loud     => $opt{loud},
 		    timeout  => $task->{timeout} || $opt{timeout},
 		    log      => $task->{log},
@@ -155,8 +157,9 @@ while (-r $opt{heartbeat}) {
 		    $_->{count} = ++$_->{count} % $_->{repeat_count};
 		}
 	    } else {
+		print Dumper $cronjob;
 		my $error = run($cronjob->{exec},
-				map { $_ => $cronjob->{$_} } qw(loud timeout log)
+				map { $_ => $cronjob->{$_} } qw(loud timeout log context)
 			       );
 		if ($error) {
 		    send_alert($error);
@@ -255,6 +258,7 @@ sub run {
 	# reference to a list of commands
 	my @cmds = (ref $cmds eq "ARRAY") ? @{$cmds} : ($cmds);
 	for my $cmd (@cmds) {
+	    my $first_output = 1;
 	    next unless ($cmd->{count} == 0);
 	    ($cmd_root) = split ' ', $cmd->{cmd};
 	    dbg "Running $cmd->{cmd} $cmd->{count} $cmd->{repeat_count}";
@@ -262,7 +266,13 @@ sub run {
 	
 	    while (<CMD>) {
 		dbg $_;
-		print $LOG_FH $_;
+		dbg "context = $par{context}\n";
+		if ($first_output and $par{context}) {
+		    print $LOG_FH "\n", '#'x60, "\n", " $cmd->{cmd}\n", '#'x60, "\n";
+		    $first_output = 0;
+		}
+		my $time_string = $par{context} ? strftime("<<%Y-%b-%d %H:%M>> ", localtime) : '';
+		print $LOG_FH $time_string . $_;
 	    }
 	    close CMD;
 	}
@@ -443,6 +453,8 @@ think suddenly finding yourself without a heartbeat could be graceful).
  # Note the syntax 'exec <number> : cmd', which means that the given command is
  # executed only once for each <number> of times the task is executed.  In the
  # example below, the commands are done once each 1, 2, and 4 minutes, respectively.
+ # The 'context 1' enables print context information for each task command
+ # which includes the name and a timestamp for each output. 
 
  <task task2>
        cron * * * * *
@@ -450,6 +462,7 @@ think suddenly finding yourself without a heartbeat could be graceful).
        exec 2 : $ENV{SKA_BIN}/task1.pl 2
        exec 4 : task1.pl 3
        timeout 100
+       context 1
  </task>
   
 =head1 AUTHOR
