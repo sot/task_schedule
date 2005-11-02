@@ -28,7 +28,7 @@ use POSIX qw(strftime);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-$VERSION = '$Id: task_schedule.pl,v 1.6 2005-11-02 22:10:11 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.7 2005-11-02 22:23:50 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -111,10 +111,7 @@ dbg Dumper \%opt;
 ##***************************************************************************
 ##  Check heart_attack file and exit if the file exists
 ##***************************************************************************
-if (-e $opt{heart_attack}) {
-    dbg "Quit because heart_attack file was found";
-    exit(0);
-}
+heart_attack() if (-e $opt{heart_attack});
 
 ##***************************************************************************
 ##  Check heartbeat file and exit gracefully if the file is recent.
@@ -164,10 +161,7 @@ while (my ($name, $task) = each %{$opt{task}}) {
 $SIG{CHLD} = 'IGNORE';		# Avoid zombies from dead children
 while (-r $opt{heartbeat}) {
     # Check within main loop for presense of heart_attack file
-    if (-e $opt{heart_attack}) {
-	dbg "Quit because heart_attack file was found";
-	exit(0);
-    }
+    heart_attack() if (-e $opt{heart_attack});
     system("touch $opt{heartbeat}");
     my $pid;
     my $time = time;
@@ -215,6 +209,14 @@ sub parse_exec {
 			  repeat_count => $repeat_count };
     }
     return \@cmds_out;
+}
+
+##***************************************************************************
+sub heart_attack {
+##***************************************************************************
+    dbg "Quit because heart_attack file was found";
+    unlink $opt{heartbeat} if (-w $opt{heartbeat});
+    exit(0);
 }
 
 ##***************************************************************************
