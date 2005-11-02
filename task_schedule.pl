@@ -28,11 +28,15 @@ use POSIX qw(strftime);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
+$VERSION = '$Id: task_schedule.pl,v 1.6 2005-11-02 22:10:11 aldcroft Exp $';
+
 ##***************************************************************************
 ##   Get config and cmd line options
 ##***************************************************************************
 
 our %opt = (config => 'data/test.config',
+	    heartbeat => 'heartbeat',
+	    heart_attack => 'heart_attack',
 	    email  => 1,
 	   );
 
@@ -65,6 +69,12 @@ if ($opt{heartbeat} !~ m|\A \s* /|x and $opt{data_dir}) {
     $opt{heartbeat} = "$opt{data_dir}/$opt{heartbeat}";
 }
 dbg "heartbeat=$opt{heartbeat}";
+
+# Fix heart_attack file name
+if ($opt{heart_attack} !~ m|\A \s* /|x and $opt{data_dir}) {
+    $opt{heart_attack} = "$opt{data_dir}/$opt{heart_attack}";
+}
+dbg "heart_attack=$opt{heart_attack}";
 
 while (my ($name, $task) = each %{$opt{task}}) {
     $task->{exec} = parse_exec($task->{exec});
@@ -99,7 +109,15 @@ if ($opt{log_dir} and not -d $opt{log_dir}) {
 dbg Dumper \%opt;
 
 ##***************************************************************************
-##  Check heartbeat file and exit gracefully if the file is recent
+##  Check heart_attack file and exit if the file exists
+##***************************************************************************
+if (-e $opt{heart_attack}) {
+    dbg "Quit because heart_attack file was found";
+    exit(0);
+}
+
+##***************************************************************************
+##  Check heartbeat file and exit gracefully if the file is recent.
 ##***************************************************************************
 if (-e $opt{heartbeat}) {
     my $modify_time = (stat $opt{heartbeat})[9];
@@ -113,7 +131,6 @@ if (-e $opt{heartbeat}) {
     # No heartbeat file, so create it
     system("touch $opt{heartbeat}");
 }
-
 
 ##***************************************************************************
 ## Set up the cron table and run
@@ -146,6 +163,11 @@ while (my ($name, $task) = each %{$opt{task}}) {
 
 $SIG{CHLD} = 'IGNORE';		# Avoid zombies from dead children
 while (-r $opt{heartbeat}) {
+    # Check within main loop for presense of heart_attack file
+    if (-e $opt{heart_attack}) {
+	dbg "Quit because heart_attack file was found";
+	exit(0);
+    }
     system("touch $opt{heartbeat}");
     my $pid;
     my $time = time;
@@ -421,6 +443,7 @@ think suddenly finding yourself without a heartbeat could be graceful).
  bin_dir      $ENV{SKA_BIN}           # Bin dir (optional, see task def'n)
  master_log   Master.log              # Composite master log (created in log_dir)
  heartbeat    heartbeat		     # File to ensure sched. running (in data_dir)
+ heart_attack heart_attack	     # File to kill task_schedule nicely
 
  # Email addresses that receive an alert if there was a severe error in
  # running jobs (i.e. couldn't start jobs or couldn't open log file).
