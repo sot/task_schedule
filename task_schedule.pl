@@ -1,5 +1,4 @@
 #!/usr/bin/env /proj/sot/ska/bin/perlska
-# #!/usr/bin/env /proj/axaf/bin/perl
 
 ##***************************************************************************
 # Schedule a set a tasks
@@ -20,6 +19,8 @@ use IO::File;
 use subs qw(dbg);
 use CXC::Envs::Flight;
 use POSIX qw(strftime);
+use IO::All;
+use Mail::Send;
  
 ##***************************************************************************
 ##   Some initialization
@@ -28,16 +29,19 @@ use POSIX qw(strftime);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.7 2005-11-02 22:23:50 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.8 2006-06-23 22:19:50 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
 ##***************************************************************************
 
-our %opt = (config => 'data/test.config',
-	    heartbeat => 'heartbeat',
-	    heart_attack => 'heart_attack',
-	    email  => 1,
+our %opt = (heartbeat      => 'task_sched_heartbeat',
+	    heart_attack   => 'task_sched_heart_attack',
+	    disable_alerts => 'task_sched_disable_alerts',
+	    cron           => '* * * * *',
+	    check_cron     => '* * * * *',
+	    email          => 1,
+	    iterations     => 0,   # No limit on iterations
 	   );
 
 GetOptions (\%opt,
@@ -46,11 +50,16 @@ GetOptions (\%opt,
 	    'help!',
 	    'email!',
 	    'fast=i',
+	    'iterations=i',
 	   );
 
 help(2) if ($opt{help});
 
-%opt = (ParseConfig(-ConfigFile => $opt{config}), %opt) if (-r $opt{config});
+%opt = (%opt,
+	ParseConfig(-ConfigFile => $opt{config},
+		    -CComments => 0,
+		   ),
+       );
 
 ##***************************************************************************
 ## Interpolate (safely) some of the options to allow for generalized paths  
@@ -64,21 +73,16 @@ foreach (qw(data_dir bin_dir log_dir)) {
     dbg "$_=$opt{$_}";
 }
 
-# Fix heartbeat file name
-if ($opt{heartbeat} !~ m|\A \s* /|x and $opt{data_dir}) {
-    $opt{heartbeat} = "$opt{data_dir}/$opt{heartbeat}";
+# Prepend files names with $opt{data_dir} if needed
+for (qw(heartbeat heart_attack disable_alerts)) {
+    if ($opt{$_} !~ m|\A \s* /|x and $opt{data_dir}) {
+	$opt{$_} = "$opt{data_dir}/$opt{$_}";
+    }
+    dbg "$_=$opt{$_}";
 }
-dbg "heartbeat=$opt{heartbeat}";
-
-# Fix heart_attack file name
-if ($opt{heart_attack} !~ m|\A \s* /|x and $opt{data_dir}) {
-    $opt{heart_attack} = "$opt{data_dir}/$opt{heart_attack}";
-}
-dbg "heart_attack=$opt{heart_attack}";
 
 while (my ($name, $task) = each %{$opt{task}}) {
     $task->{exec} = parse_exec($task->{exec});
-#    for ((ref $task->{exec} eq "ARRAY") ? @{$task->{exec}} : ($task->{exec})) {
     foreach (@{$task->{exec}}) {
 	$_->{cmd} = $safe->reval(qq/"$_->{cmd}"/);
 
@@ -101,8 +105,9 @@ while (my ($name, $task) = each %{$opt{task}}) {
 
 # Create log directory if necessary
 if ($opt{log_dir} and not -d $opt{log_dir}) {
-    system("mkdir -p $opt{log_dir}") == 0
-      or die send_alert("ERROR - : Could not open log dir $opt{log_dir}");
+    eval { io($opt{log_dir})->mkpath };
+    die send_mail('alert', "$opt{subject}: ALERT",
+		  "ERROR - Could not open log dir $opt{log_dir}: $@") if $@;
 }
 
 # Print the final program options
@@ -138,15 +143,12 @@ our @crontab;
 our $cron = new Schedule::Cron(sub {});
 
 while (my ($name, $task) = each %{$opt{task}}) {
-    my $next_time = next_time($task->{cron});
-    
-    push @crontab, {cron  => $task->{cron},
-		    exec  => $task->{exec},
-		    context => $task->{context},
-		    loud     => $opt{loud},
-		    timeout  => $task->{timeout} || $opt{timeout},
-		    log      => $task->{log},
-		    next_time => $next_time,
+    push @crontab, { %{$task},
+		     name     	     => $name,
+		     timeout  	     => $task->{timeout} || $opt{timeout},
+		     next_time	     => next_time($task->{cron}),
+		     next_check_time => next_time($task->{check_cron}),
+		     iterations      => $opt{iterations},
 		   };
 }
 
@@ -162,31 +164,86 @@ $SIG{CHLD} = 'IGNORE';		# Avoid zombies from dead children
 while (-r $opt{heartbeat}) {
     # Check within main loop for presense of heart_attack file
     heart_attack() if (-e $opt{heart_attack});
+
     system("touch $opt{heartbeat}");
     my $pid;
     my $time = time;
     foreach my $cronjob (@crontab) {
+	next if ($cronjob->{disabled});
 	if ($time >= $cronjob->{next_time}) {
 	    if ($pid = fork) {
+		# Set time for next cronjob execution
 		$cronjob->{next_time} = next_time($cronjob->{cron});
+
+		# Set time for next check_outputs (watch_cron_logs) execution
+		$cronjob->{next_check_time} = next_time($cronjob->{check_cron})
+		  if ($time >= $cronjob->{next_check_time});
+
+		# Disable further processing if iteration count reached
+		$cronjob->{disabled} = 1 if (--$cronjob->{iterations} == 0);
+
 		foreach (@{$cronjob->{exec}}) {
 		    $_->{count} = ++$_->{count} % $_->{repeat_count};
 		}
 	    } else {
-		my $error = run($cronjob->{exec},
-				map { $_ => $cronjob->{$_} } qw(loud timeout log context)
-			       );
-		if ($error) {
-		    send_alert($error);
-		}
+		# Actually run each of the executables (exec's) in task
+		my $error= run($cronjob->{exec},
+			       map { $_ => $cronjob->{$_} } qw(loud timeout log context name));
+
+		# Send Alert and Notification as necessary
+		send_mail('alert', "$opt{subject}: ALERT", $error) if $error;
+		send_mail('notify', "$opt{subject}: NOTIFY",
+			  "Task '$cronjob->{name}' ran at ".localtime()."\n"
+			  . ($opt{notify_msg} || ''));
+
+		# Check for errors in output and archive files in log directory
+		check_outputs($cronjob) if ($cronjob->{check}
+					    and not -e $opt{disable_alerts}
+					    and $time >= $cronjob->{next_check_time}
+					   );
 		exit(0);
 	    }
 	}
     }
+
+    # Exit if all the cron tasks have been disabled
+    exit(0) unless grep { not $_->{disabled} } @crontab;
+
     sleep (next_time("* * * * *") - time);
 }
 
-send_alert("Quit because of lost heartbeat");
+send_mail('alert', "$opt{subject}: ALERT", "Quit because of lost heartbeat");
+
+##***************************************************************************
+sub check_outputs {
+##***************************************************************************
+    my $cronjob = shift;
+
+    my $watch_config = io(POSIX::tmpnam);
+    my $log_dir = dirname($cronjob->{log});
+    my $config .= Config::General->new()->save_string({ check => $cronjob->{check},
+							alert => $opt{alert},
+							subject => $opt{subject},
+							logs => $log_dir,
+							n_days => 7,
+							master_log => 'watch_cron_master.log',
+						      });
+    $config > $watch_config;
+    my $dryrun = $opt{email} ? '' : '-dryrun';
+    my $error = run([ { cmd => "watch_cron_logs.pl $dryrun -erase -config $watch_config",
+			count => 0,
+			repeat_count => 1,
+		      }],
+		    name => 'watch_cron_logs',
+		    context => 1,
+		   );
+    if ($error) {
+	dbg("WARNING - Task processing errors found in watch_cron_logs");
+	io($opt{disable_alerts})->touch ;
+    }
+
+    $watch_config->unlink;
+}
 
 ##***************************************************************************
 sub parse_exec {
@@ -220,33 +277,40 @@ sub heart_attack {
 }
 
 ##***************************************************************************
-sub send_alert {
+sub send_mail {
 ##***************************************************************************
-    my $alert_message = shift;
+    my $mail_list = shift;	# Mailing list name
+    my $subject = shift;
+    my $message = shift;
+    return unless $opt{$mail_list};
+    my @addr_list = ref($opt{$mail_list}) eq "ARRAY" ? @{$opt{$mail_list}} : $opt{$mail_list};
 
-    my $addr_list = ref($opt{alert}) eq "ARRAY" ? join(',', @{$opt{alert}}) : $opt{alert};
-    my $mail_cmd = "mail -s \"$opt{subject}: ALERT\" $addr_list";
-
-    my $message = "Severe processing error:\n $alert_message\n";
-
-    # If specified then do mail command else just print errors to stdout
+    # If specified then send mail, else just print errors to stdout
     if ($opt{email}) {
-	open MAIL, "| $mail_cmd"
-	  or die "Could not start mail to send alert notification";
-	print MAIL $message;
-	close MAIL;
+	my $msg = Mail::Send->new;
+	$msg->subject("$subject");
+	$msg->to(@addr_list);
+	my $fh = $msg->open;
+	print $fh $message;
+	$fh->close;
     } 
     
-    dbg $mail_cmd;
+    dbg "Send mail with subject '$subject' to @addr_list";
     dbg $message;
 
-    return $alert_message;
+    return $message;
 }
 
 ##***************************************************************************
 sub next_time {
 ##***************************************************************************
-    return $opt{fast} ? time + $opt{fast} : $cron->get_next_execution_time(shift);
+    my $val = shift;
+    return time + $opt{fast} if $opt{fast};
+
+    # Seems like a bug in Schedule::Cron get_next_execution because I find it returning
+    # a two-element array [next_time, '']
+    my @time = $cron->get_next_execution_time($val);
+    return $time[0];
 }
 
 ##***************************************************************************
@@ -262,7 +326,7 @@ sub run {
 	       @_
 	      );
 
-    # Open log file for task
+    # Append to the appropriate log file
     if ($par{log}) {
 	$LOG_FH = new IO::File ">> $par{log}" or
 	  return "ERROR - could not open logfile $par{log}";
@@ -274,6 +338,7 @@ sub run {
     eval {
 	local $SIG{ALRM} = sub { die "alarm\n";
 			       }; # NB: \n required
+	local $SIG{CHLD};
 
 	alarm $par{timeout} if $par{timeout};
 
@@ -284,21 +349,28 @@ sub run {
 	    my $first_output = 1;
 	    next unless ($cmd->{count} == 0);
 	    ($cmd_root) = split ' ', $cmd->{cmd};
-	    dbg "Running $cmd->{cmd} $cmd->{count} $cmd->{repeat_count}";
-	    $cmd_pid = open CMD, "$cmd->{cmd} 2>&1 |" or die "ERROR - Could not start $cmd_root command\n";
+	    dbg "Running '$cmd->{cmd}' $cmd->{count} $cmd->{repeat_count}";
+	    $cmd_pid = open CMD, "$cmd->{cmd} 2>&1 |" or die "ERROR - Could not start $cmd_root command: $!\n";
 	
+	    my $exec_out = '';
 	    while (<CMD>) {
-		dbg $_;
+		$exec_out .= $_;
 		if ($first_output and $par{context}) {
-		    print $LOG_FH "\n", '#'x60, "\n", " $cmd->{cmd}\n", '#'x60, "\n";
+		    print $LOG_FH "\n", '#'x60, "\n", " $cmd->{cmd}\n", '#'x60, "\n" if $LOG_FH;
 		    $first_output = 0;
 		}
 		my $time_string = $par{context} ? strftime("<<%Y-%b-%d %H:%M>> ", localtime) : '';
-		print $LOG_FH $time_string . $_;
+		print $LOG_FH $time_string . $_ if $LOG_FH;
 	    }
-	    close CMD;
-	}
+	    dbg("$par{name} output:") if $par{name};
+	    dbg($exec_out);
 
+	    # Close and make sure all is OK.  'die $! ? "A" : "B"' doesn't parse in xemacs)
+	    unless (close CMD) {
+		if ($!) { die "ERROR - Couldn't close $cmd_root pipe: $! \n"; }
+		else    { die "WARNING - '$cmd->{cmd}' returned non-zero status: $?\n"; }
+	    }
+	}
 	alarm 0;
     };
 
@@ -319,7 +391,7 @@ sub run {
 	close CMD;
     }
 
-    $LOG_FH->close();
+    $LOG_FH->close() if $LOG_FH;
     return;			# For this routine, undef => success
 }
 
@@ -336,7 +408,7 @@ sub dbg  {
     if (length $caller > 22) {
       $caller = substr($caller,0,10)."..".substr($caller,-10,10);
     }
-    my $align = ' 'x39;
+    my $align = ' 'x40;
     $args =~ s/\n/\n$align/g;
     print STDERR sprintf ("%02d:%02d:%02d [%22.22s %4.4s]  %s\n",
 			  (localtime)[2,1,0],$caller,$line,$args);
@@ -396,6 +468,12 @@ Print error alerts but do not actually send emails.
 For development and testing, ignore task cron specifications and instead run
 each job every <time> seconds.
 
+=item B<-iterations <number>>
+
+Run tasks a maximum of <number> iterations.  The default is no limit, but another
+typical value is 1, in which case task_schedule will run the task once and quit.
+This makes sense for tasks that run infrequently.
+
 =item B<--help>
 
 print this usage and exit.
@@ -430,22 +508,24 @@ think suddenly finding yourself without a heartbeat could be graceful).
 
 =head1 EXAMPLE CONFIG FILE
 
- # Configuration file for watch_cron_logs operation in TST area
+The example config file below illustrates all the available configuration options.
 
- loud         0                       # Run loudly
- subject      TST tasks               # subject of email
- timeout      1000                    # Default tool timeout
+ loud              0                  # Run loudly
+ subject           TST tasks          # Subject line of emails
+ email             1                  # Set to 0 to disable emails (alert, notify)
+ timeout           1000               # Default tool timeout
  heartbeat_timeout 120                # Maximum age of heartbeat file (seconds)
-
+ iterations        0                  # Maximum task iterations.  Zero => no limit.
+ 
  # Data files and directories.  The *_dir vars can have $ENV{} vars which
- # get interpolated.  (Note lack of task name after TST_DATA because this is just for test).
+ # get interpolated.  The '/task' would be replaced by the actual task name.
 
- data_dir     $ENV{SKA_DATA}          # Data file directory
- log_dir      $ENV{SKA_DATA}/Logs     # Log file directory
- bin_dir      $ENV{SKA_BIN}           # Bin dir (optional, see task def'n)
- master_log   Master.log              # Composite master log (created in log_dir)
- heartbeat    heartbeat		     # File to ensure sched. running (in data_dir)
- heart_attack heart_attack	     # File to kill task_schedule nicely
+ data_dir     	$ENV{SKA_DATA}/task          # Data file directory
+ log_dir      	$ENV{SKA_DATA}/task/logs     # Log file directory
+ bin_dir      	$ENV{SKA_SHARE}/task         # Bin dir (optional, see task def'n)
+ heartbeat    	task_sched_heartbeat	     # File to ensure sched. running (in data_dir)
+ heart_attack 	task_sched_heart_attack      # File to kill task_schedule nicely
+ disable_alerts task_sched_disable_alerts    # File to stop alerts from being sent
 
  # Email addresses that receive an alert if there was a severe error in
  # running jobs (i.e. couldn't start jobs or couldn't open log file).
@@ -454,22 +534,59 @@ think suddenly finding yourself without a heartbeat could be graceful).
  alert	     first_person@head.cfa.harvard.edu
  alert	     another_person@head.cfa.harvard.edu
 
+ # Email addresses that receive notification that task ran.  This
+ # will be sent once per task cron interval, so this list should
+ # probably be left empty for tasks running every minute!
+
+ notify	     first_person@head.cfa.harvard.edu
+ notify	     another_person@head.cfa.harvard.edu
+
+ # Optional message to include in the notification email
+ notify_msg <<NOTIFY
+  Please see the web page to check on the weather:
+  http://weather.yahoo.com/forecast/USNH0169_f.html
+ NOTIFY
+
  # Define task parameters
  #  cron: Job repetition specification ala crontab
+ #  check_cron: Crontab specification of log (processing) checks via watch_cron_logs
  #  exec: Name of executable.  Can have $ENV{} vars which get interpolated.  
  #        If bin_dir is defined then bin_dir is prepended to non-absolute exec names.
  #  log: Name of log.  Can have $ENV{} vars which get interpolated.
- #        If log is set to '' then no log file will be created
+ #        If log is set to '' then no log file will be created (not recommended)
  #        If log is not defined it is set to <task_name>.log.
  #        If log_dir is defined then log_dir is prepended to non-absolute log names.
  #  timeout: Maximum time (seconds) for job before timing out
+ #  check: Specify reg-ex's to watch for in output from task1.  This is done
+ # 	   with a call to watch_cron_logs based on this definition.  Flagged
+ # 	   errors are sent to the alert list.  If no <check ..> 
+ # 	   parameter is given then no checking is done.  See
+ # 	   watch_cron_logs doc for more info.  If an alert is sent then further
+ #         alerts are disabled until the file specified by disable_alerts
+ #         in the data directory is removed.
 
- # # Task that isn't found, generating email
+
+ # Typical task setup to run something called task1.pl with argument 20
+ # and a few checks for error/warning messages.  The '*' glob for the
+ # check file means to look in any file in the log directory.
+ # This example runs every minute and checks the output logs once a day
+ # at 1am.  At that time the log output is archived in daily.? directories.
+
   <task task1>
-        cron * * * * *
+        cron       * * * * *
+        check_cron 0 1 * * *
         exec task1.pl 20
-        log  task1_with_nonstandard.log
         timeout 15
+        <check>
+           <error>
+             #    File          Reg. Expression (case insensitive)
+             #  ----------      ---------------------------
+                *               use of uninitialized value
+                *               warning
+                *               (?<!Program caused arithmetic )error
+                *               fatal
+           </error>
+       </check>
   </task>
 
  # This has multiple jobs which get run in specified order
@@ -481,6 +598,7 @@ think suddenly finding yourself without a heartbeat could be graceful).
 
  <task task2>
        cron * * * * *
+       log  task2_with_nonstandard.log
        exec task1.pl 1
        exec 2 : $ENV{SKA_BIN}/task1.pl 2
        exec 4 : task1.pl 3

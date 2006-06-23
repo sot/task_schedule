@@ -6,8 +6,6 @@ FLIGHT_ENV = SKA
 
 # Set the names of all files that get installed
 BIN = task_schedule.pl
-DOC = README
-# include /proj/sot/ska/include/Makefile.FLIGHT
 include /proj/sot/ska/include/Makefile.FLIGHT
 
 # Define outside data and bin dependencies required for testing,
@@ -16,7 +14,11 @@ include /proj/sot/ska/include/Makefile.FLIGHT
 # first from the local test directory t/ and if not found from the
 # ROOT_FLIGHT area.
 #
-TEST_DEP = data/test.config bin/task1.pl bin/task2.pl
+TEST_DEP = data/basic/basic.config \
+	data/fail/fail.config \
+	data/send_mail/send_mail.config \
+	bin/task1.pl bin/task2.pl \
+	bin/watch_cron_logs.pl
 
 # To 'test', first check that the INSTALL root is not the same as the FLIGHT
 # root with 'check_install' (defined in Makefile.FLIGHT).  Typically this means
@@ -24,12 +26,34 @@ TEST_DEP = data/test.config bin/task1.pl bin/task2.pl
 # directory via dependency rules defined in Makefile.FLIGHT.  Finally install
 # the task, typically in '.'. 
 
-test: check_install $(TEST_DEP) install
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/test.config -fast 20 -no-email -loud
+test_basic: check_install $(TEST_DEP) install
+	rm -f $(INSTALL)/data/basic/task_sched_heartbeat
+	rm -f $(INSTALL)/data/basic/task_sched_heart_attack
+	rm -f $(INSTALL)/data/basic/task_sched_disable_alerts
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/basic/basic.config -fast 6 -no-email -loud
+
+test_basic_full: check_install $(TEST_DEP) install
+	rm -f $(INSTALL)/data/basic/task_sched_heartbeat
+	rm -f $(INSTALL)/data/basic/task_sched_heart_attack
+	rm -f $(INSTALL)/data/basic/task_sched_disable_alerts
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/basic/basic.config -loud
+
+test_fail: check_install $(TEST_DEP) install 
+	rm -f $(INSTALL)/data/fail/task_sched_heartbeat
+	rm -f $(INSTALL)/data/fail/task_sched_heart_attack
+	rm -f $(INSTALL)/data/fail/task_sched_disable_alerts
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/fail/fail.config -fast 20 -no-email -loud
+
+test_send_mail: check_install $(TEST_DEP) install 
+	rm -f $(INSTALL)/data/send_mail/task_sched_heartbeat
+	rm -f $(INSTALL)/data/send_mail/task_sched_heart_attack
+	rm -f $(INSTALL)/data/send_mail/task_sched_disable_alerts
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 20 -loud
 
 install:
 	mkdir -p $(INSTALL_BIN); rsync --times --cvs-exclude $(BIN) $(INSTALL_BIN)/
-	mkdir -p $(INSTALL_DOC); rsync --times --cvs-exclude $(DOC) $(INSTALL_DOC)/
+	pod2html task_schedule.pl > $(INSTALL_DOC)/index.html
+	rm -f pod2htm?.tmp
 
 clean:
 	rm -r bin data doc
