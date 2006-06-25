@@ -21,6 +21,7 @@ use CXC::Envs::Flight;
 use POSIX qw(strftime);
 use IO::All;
 use Mail::Send;
+use Ska::Process qw(send_mail);
  
 ##***************************************************************************
 ##   Some initialization
@@ -29,7 +30,7 @@ use Mail::Send;
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.10 2006-06-25 13:59:05 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.11 2006-06-25 19:30:58 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -106,8 +107,15 @@ while (my ($name, $task) = each %{$opt{task}}) {
 # Create log directory if necessary
 if ($opt{log_dir} and not -d $opt{log_dir}) {
     eval { io($opt{log_dir})->mkpath };
-    die send_mail('alert', "$opt{subject}: ALERT",
-		  "ERROR - Could not open log dir $opt{log_dir}: $@") if $@;
+    if ($@) {
+	my $error = "ERROR - Could not open log dir $opt{log_dir}: $@";
+	send_mail(addr_list => $opt{alert},
+		  subject   => "$opt{subject}: ALERT",
+		  message   => $error,
+		  loud      => $opt{loud},
+		  dryrun    => not $opt{email});
+	die "$error\n";
+    }
 }
 
 # Print the final program options
@@ -191,10 +199,19 @@ while (-r $opt{heartbeat}) {
 			       map { $_ => $cronjob->{$_} } qw(loud timeout log context name));
 
 		# Send Alert and Notification as necessary
-		send_mail('alert', "$opt{subject}: ALERT", $error) if $error;
-		send_mail('notify', "$opt{subject}: NOTIFY",
-			  "Task '$cronjob->{name}' ran at ".localtime()."\n"
-			  . ($opt{notify_msg} || ''));
+		dbg send_mail(addr_list => $opt{alert},
+			      subject   => "$opt{subject}: ALERT",
+			      message   => $error,
+			      loud      => 0,
+			      dryrun    => not $opt{email}) if $error;
+
+		my $notify_msg = "Task '$cronjob->{name}' ran at ".localtime()."\n"
+                     		  . ($opt{notify_msg} || '');
+		dbg send_mail(addr_list => $opt{notify},
+			      subject   => "$opt{subject}: NOTIFY",
+			      message   => $notify_msg,
+			      loud      => 0,
+			      dryrun    => not $opt{email});
 
 		# Check for errors in output and archive files in log directory
 		check_outputs($cronjob) if ($cronjob->{check}
@@ -212,7 +229,11 @@ while (-r $opt{heartbeat}) {
     sleep (next_time("* * * * *") - time);
 }
 
-send_mail('alert', "$opt{subject}: ALERT", "Quit because of lost heartbeat");
+send_mail(addr_list => $opt{alert},
+	  subject   => "$opt{subject}: ALERT",
+	  message   => "Quit because of lost heartbeat",
+	  loud      => $opt{loud},
+	  dryrun    => not $opt{email});
 
 ##***************************************************************************
 sub check_outputs {
@@ -223,7 +244,7 @@ sub check_outputs {
     my $log_dir = dirname($cronjob->{log});
     my $config .= Config::General->new()->save_string({ check => $cronjob->{check},
 							alert => $opt{alert},
-							subject => $opt{subject},
+							subject => "$opt{subject} (watch_cron_logs)",
 							logs => $log_dir,
 							n_days => 7,
 							master_log => 'watch_cron_master.log',
@@ -274,31 +295,6 @@ sub heart_attack {
     dbg "Quit because heart_attack file was found";
     unlink $opt{heartbeat} if (-w $opt{heartbeat});
     exit(0);
-}
-
-##***************************************************************************
-sub send_mail {
-##***************************************************************************
-    my $mail_list = shift;	# Mailing list name
-    my $subject = shift;
-    my $message = shift;
-    return unless $opt{$mail_list};
-    my @addr_list = ref($opt{$mail_list}) eq "ARRAY" ? @{$opt{$mail_list}} : $opt{$mail_list};
-
-    # If specified then send mail, else just print errors to stdout
-    if ($opt{email}) {
-	my $msg = Mail::Send->new;
-	$msg->subject("$subject");
-	$msg->to(@addr_list);
-	my $fh = $msg->open;
-	print $fh $message;
-	$fh->close;
-    } 
-    
-    dbg "Send mail with subject '$subject' to @addr_list";
-    dbg $message;
-
-    return $message;
 }
 
 ##***************************************************************************

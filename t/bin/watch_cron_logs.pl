@@ -1,4 +1,4 @@
-#!/usr/bin/env /proj/axaf/bin/perl
+#!/usr/bin/env /proj/sot/ska/bin/perl
 
 # Keep a 7-day daily archive of log outputs from cron jobs
 # 
@@ -10,6 +10,9 @@ use File::Basename;
 use Getopt::Long;
 use Config::General;
 use Data::Dumper;
+use Mail::Send;
+use IO::All;
+use Ska::Process qw(send_mail);
 
 sub run($) {
   my $command = shift;
@@ -132,7 +135,10 @@ select STDOUT;
 foreach (@files) {
     next if /daily.\d\Z/;
     if ($opt{erase}) {
-	run "mv $_ $logs/daily.0 ; touch $_; chgrp aspect $_; chmod g+w $_";
+	run "mv $_ $logs/daily.0";
+	run "touch $_";
+	run "chgrp aspect $_";
+	run "chmod g+w $_";
     } else {
 	run "cp $_ $logs/daily.0/";
     }
@@ -140,34 +146,26 @@ foreach (@files) {
 
 # Email "notifications", which is currently just a copy of the $master_log file
 
-if (defined $opt{daily}) {
-    my $addr_list = ref($opt{daily}) eq "ARRAY" ? join(',', @{$opt{daily}}) : $opt{daily};
-    run "mail -s \"$opt{subject}\" $addr_list < $master_file";
-}
-
+send_mail(mail_list => $opt{notify},
+	  subject   => "$opt{subject}: NOTIFY",
+	  message   => scalar io($master_file)->slurp,
+	  loud      => $opt{loud},
+	  dryrun    => $opt{dryrun});
+  
 # Now check contents of log files and send alerts (probably pagers) if needed
 
 my @err_files;
 if (defined $opt{alert}) {
     # Check if there were any errors and issue alerts if so
-    @err_files = grep { @{$errors{$_}} } @files;
+    if (@err_files = grep { @{$errors{$_}} } @files) {
+	my $out = "Errors in files: \n";
+	$out .=  basename($_) . "\n" for @err_files;
 
-    if (@err_files) {
-        # Build the address list and mail command for sending alerts
-	my $addr_list = ref($opt{alert}) eq "ARRAY" ? join(',', @{$opt{alert}}) : $opt{alert};
-	my $cmd = "mail -s \"$opt{subject}: ALERT\" $addr_list";
-
-	# If not dry run then do mail command else just print errors to stdout
-	unless ($opt{dryrun}) {
-	    open MAIL, "| $cmd"
-	      or die "Could not start mail to send alert notification";
-	    select MAIL;
-	} 
-	print STDOUT "$cmd\n" if $opt{loud};
-	print "Errors in files: \n";
-	map {print basename($_),"\n" } @err_files;
-	close MAIL unless $opt{dryrun};
-	select STDOUT;
+	send_mail(addr_list => $opt{alert},
+		  subject   => "$opt{subject}: ALERT",
+		  message   => $out,
+		  loud      => $opt{loud},
+		  dryrun    => $opt{dryrun});
     }
 }
 
@@ -208,7 +206,7 @@ create any files or send emails
 
 Configuration file controlling behavior of watch_cron_logs.  Specifies defaults
 for command line options as well as daily and alert email recipients, and 
-criteria for issuing alerts.  See config file for documentation.
+criteria for issuing alerts.  See sample config file below for documentation.
 
 =item B<-subject <email_subject>>
 
@@ -223,14 +221,66 @@ print this usage and exit.
 =head1 DESCRIPTION
 
 B<watch_cron_logs> is normally used as a cron job itself to monitor
-the outputs of other cron tasks on a daily basis.  It collects the
-task outputs into daily archives accumulate for a week.  It will
-also do specific error detection and email notification, but not yet. 
+the outputs of other cron tasks.  It collects the
+task outputs into archives and stores a specified number of versions.  It will
+also do specific error detection and email notification.
 
 =head2 EXAMPLE
 
  /proj/sot/ska/bin/watch_cron_logs.pl -logs /proj/sot/tst/ops
 
+=head2 CONFIGURATION FILE
+
+ # Configuration file for watch_cron_logs operation in TST area
+
+ erase        1                       # Clean cron log files each time, otherwise just copy
+ loud         1                       # Run loudly
+ subject      TST ops cron outputs    # subject of email
+ logs         /proj/rac/ops/Logs      # Location of log files
+ n_days       7                       # Number of days to accumulate daily copies of logs
+ master_log   Master.log              # Name of composite master log file
+ dryrun	     0                       # Dry run only
+
+ # Email addresses that receive daily copy of master (composite) log file
+
+ notify	     aldcroft@head.cfa.harvard.edu
+ notify	     jeanconn@head.cfa.harvard.edu
+
+ # Email addresses (pagers) that get reports of errors
+
+ alert        6177214364@vtext.com          # Tom
+ alert	     8885312934@archwireless.net   # Jean
+
+ # Specify checks to be done on log files.
+ # The <error> list are perl regular expressions.  The value of '*'
+ # for the file matches any file
+
+ <check>
+ 	<error>
+              #    File           Expression          
+              #  ----------      ---------------------------
+ 		*		Use of uninitialized value
+ 		*		(?<!Program caused arithmetic )Error
+ 		*		Warning
+                 *               fatal
+ 	</error>
+
+ 	# These log files must exist every day and contain the required expressions
+
+ 	<required_always>
+ 		dsn.cron	Fetching DSN weekly schedule files
+ 		dsn.cron	7dayss
+ 		ephem.cron	Rate of change of RA of AN
+ 	</required_always>
+
+ 	# Check for these expressions only if the task produced some output
+
+ 	<required_when_output>
+ 		dephem.cron	Processing
+ 	</required_when_output>
+ </check>
+
 =head1 AUTHOR
 
-Tom Aldcroft (taldcroft@cfa.harvard.edu)
+ Tom Aldcroft (taldcroft@cfa.harvard.edu)
+ Copyright 2004-2006 Smithsonian Astrophysical Observatory
