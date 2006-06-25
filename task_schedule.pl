@@ -29,7 +29,7 @@ use Mail::Send;
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.9 2006-06-25 13:55:53 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.10 2006-06-25 13:59:05 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -39,7 +39,7 @@ our %opt = (heartbeat      => 'task_sched_heartbeat',
 	    heart_attack   => 'task_sched_heart_attack',
 	    disable_alerts => 'task_sched_disable_alerts',
 	    cron           => '* * * * *',
-	    check_cron     => '* * * * *',
+	    check_cron     => '0 0 * * *',
 	    email          => 1,
 	    iterations     => 0,   # No limit on iterations
 	   );
