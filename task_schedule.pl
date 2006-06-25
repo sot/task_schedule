@@ -30,7 +30,7 @@ use Ska::Process qw(send_mail);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.11 2006-06-25 19:30:58 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.12 2006-06-25 20:52:23 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -43,6 +43,7 @@ our %opt = (heartbeat      => 'task_sched_heartbeat',
 	    check_cron     => '0 0 * * *',
 	    email          => 1,
 	    iterations     => 0,   # No limit on iterations
+	    master_log     => 'watch_cron_logs.master',
 	   );
 
 GetOptions (\%opt,
@@ -215,7 +216,6 @@ while (-r $opt{heartbeat}) {
 
 		# Check for errors in output and archive files in log directory
 		check_outputs($cronjob) if ($cronjob->{check}
-					    and not -e $opt{disable_alerts}
 					    and $time >= $cronjob->{next_check_time}
 					   );
 		exit(0);
@@ -247,11 +247,11 @@ sub check_outputs {
 							subject => "$opt{subject} (watch_cron_logs)",
 							logs => $log_dir,
 							n_days => 7,
-							master_log => 'watch_cron_master.log',
+							master_log => $opt{master_log},
 						      });
     $config > $watch_config;
-    my $dryrun = $opt{email} ? '' : '-dryrun';
-    my $error = run([ { cmd => "watch_cron_logs.pl $dryrun -erase -config $watch_config",
+    my $email_flag = ($opt{email} && not -e $opt{disable_alerts}) ? '-email' : '-noemail';
+    my $error = run([ { cmd => "watch_cron_logs.pl $email_flag -erase -config $watch_config",
 			count => 0,
 			repeat_count => 1,
 		      }],
@@ -512,6 +512,7 @@ The example config file below illustrates all the available configuration option
  timeout           1000               # Default tool timeout
  heartbeat_timeout 120                # Maximum age of heartbeat file (seconds)
  iterations        0                  # Maximum task iterations.  Zero => no limit.
+ master_log        watch_cron.log     # Master log (from all tasks) if checking is enabled
  
  # Data files and directories.  The *_dir vars can have $ENV{} vars which
  # get interpolated.  The '/task' would be replaced by the actual task name.

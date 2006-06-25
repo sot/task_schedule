@@ -22,13 +22,16 @@ sub run($) {
   }
 }
 
-our %opt = (config => 'data/default.config');
+our %opt = (config   => 'data/default.config',
+	    email    =>  1,
+	   );
 
 GetOptions (\%opt,
 	    'logs=s',
 	    'config=s',
 	    'subject=s',
 	    'erase!',
+	    'email!',
 	    'loud!',
 	    'help!',
 	    'dryrun!',
@@ -150,7 +153,7 @@ send_mail(mail_list => $opt{notify},
 	  subject   => "$opt{subject}: NOTIFY",
 	  message   => scalar io($master_file)->slurp,
 	  loud      => $opt{loud},
-	  dryrun    => $opt{dryrun});
+	  dryrun    => $opt{dryrun} || not $opt{email});
   
 # Now check contents of log files and send alerts (probably pagers) if needed
 
@@ -165,7 +168,7 @@ if (defined $opt{alert}) {
 		  subject   => "$opt{subject}: ALERT",
 		  message   => $out,
 		  loud      => $opt{loud},
-		  dryrun    => $opt{dryrun});
+		  dryrun    => $opt{dryrun} || not $opt{email});
     }
 }
 

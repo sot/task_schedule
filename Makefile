@@ -48,13 +48,13 @@ test_send_mail: check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/send_mail/task_sched_heartbeat
 	rm -f $(INSTALL)/data/send_mail/task_sched_heart_attack
 	rm -f $(INSTALL)/data/send_mail/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 20 -loud
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 -loud
 
 test_send_mail_quiet: check_install $(TEST_DEP) install 
 	rm -f $(INSTALL)/data/send_mail/task_sched_heartbeat
 	rm -f $(INSTALL)/data/send_mail/task_sched_heart_attack
 	rm -f $(INSTALL)/data/send_mail/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 5
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 
 
 install:
 	mkdir -p $(INSTALL_BIN); rsync --times --cvs-exclude $(BIN) $(INSTALL_BIN)/
