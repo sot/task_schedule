@@ -29,7 +29,7 @@ use Mail::Send;
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.8 2006-06-23 22:19:50 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.9 2006-06-25 13:55:53 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -511,7 +511,7 @@ think suddenly finding yourself without a heartbeat could be graceful).
 The example config file below illustrates all the available configuration options.
 
  loud              0                  # Run loudly
- subject           TST tasks          # Subject line of emails
+ subject           task_schedule: task  # Subject line of emails
  email             1                  # Set to 0 to disable emails (alert, notify)
  timeout           1000               # Default tool timeout
  heartbeat_timeout 120                # Maximum age of heartbeat file (seconds)
@@ -593,7 +593,7 @@ The example config file below illustrates all the available configuration option
  # Note the syntax 'exec <number> : cmd', which means that the given command is
  # executed only once for each <number> of times the task is executed.  In the
  # example below, the commands are done once each 1, 2, and 4 minutes, respectively.
- # The 'context 1' enables print context information for each task command
+ # The 'context 1' enables print context information in the log file
  # which includes the name and a timestamp for each output. 
 
  <task task2>
@@ -609,3 +609,4 @@ The example config file below illustrates all the available configuration option
 =head1 AUTHOR
 
 Tom Aldcroft (taldcroft@cfa.harvard.edu)
+Copyright 2004-2006 Smithsonian Astrophysical Observatory
