@@ -30,7 +30,7 @@ use Ska::Process qw(send_mail);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.12 2006-06-25 20:52:23 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.13 2006-06-26 12:52:10 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -200,11 +200,15 @@ while (-r $opt{heartbeat}) {
 			       map { $_ => $cronjob->{$_} } qw(loud timeout log context name));
 
 		# Send Alert and Notification as necessary
-		dbg send_mail(addr_list => $opt{alert},
-			      subject   => "$opt{subject}: ALERT",
-			      message   => $error,
-			      loud      => 0,
-			      dryrun    => not $opt{email}) if $error;
+		if ($error) {
+		    dbg("WARNING - Task processing error: $error");
+		    dbg send_mail(addr_list => $opt{alert},
+				  subject   => "$opt{subject}: ALERT",
+				  message   => $error,
+				  loud      => 0,
+				  dryrun    => not $opt{email}) unless (-e $opt{disable_alerts});
+		    io($opt{disable_alerts})->touch ;
+		}
 
 		my $notify_msg = "Task '$cronjob->{name}' ran at ".localtime()."\n"
                      		  . ($opt{notify_msg} || '');
