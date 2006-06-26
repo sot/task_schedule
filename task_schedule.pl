@@ -30,7 +30,7 @@ use Ska::Process qw(send_mail);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.13 2006-06-26 12:52:10 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.14 2006-06-26 13:51:03 aldcroft Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -152,6 +152,8 @@ our @crontab;
 our $cron = new Schedule::Cron(sub {});
 
 while (my ($name, $task) = each %{$opt{task}}) {
+    $task->{cron}       ||= '* * * * *';
+    $task->{check_cron} ||= '0 0 * * *';
     push @crontab, { %{$task},
 		     name     	     => $name,
 		     timeout  	     => $task->{timeout} || $opt{timeout},
@@ -549,8 +551,9 @@ The example config file below illustrates all the available configuration option
  NOTIFY
 
  # Define task parameters
- #  cron: Job repetition specification ala crontab
- #  check_cron: Crontab specification of log (processing) checks via watch_cron_logs
+ #  cron: Job repetition specification ala crontab.  Defaults to '* * * * *'
+ #  check_cron: Crontab specification of log (processing) checks via watch_cron_logs.
+ #        Defaults to '0 0 * * *'.  
  #  exec: Name of executable.  Can have $ENV{} vars which get interpolated.  
  #        If bin_dir is defined then bin_dir is prepended to non-absolute exec names.
  #  log: Name of log.  Can have $ENV{} vars which get interpolated.
