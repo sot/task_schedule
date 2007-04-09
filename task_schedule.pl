@@ -30,7 +30,7 @@ use Ska::Process qw(send_mail);
 $| = 1;
 %ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
 
-our $VERSION = '$Id: task_schedule.pl,v 1.14 2006-06-26 13:51:03 aldcroft Exp $';
+our $VERSION = '$Id: task_schedule.pl,v 1.15 2007-04-09 15:54:09 aca Exp $';
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -257,7 +257,8 @@ sub check_outputs {
 						      });
     $config > $watch_config;
     my $email_flag = ($opt{email} && not -e $opt{disable_alerts}) ? '-email' : '-noemail';
-    my $error = run([ { cmd => "watch_cron_logs.pl $email_flag -erase -config $watch_config",
+    my $print_error_flag = $opt{print_error} ? '-printerror' : '';
+    my $error = run([ { cmd => "watch_cron_logs.pl $email_flag $print_error_flag -erase -config $watch_config",
 			count => 0,
 			repeat_count => 1,
 		      }],
