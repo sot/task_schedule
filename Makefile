@@ -15,10 +15,12 @@ include /proj/sot/ska/include/Makefile.FLIGHT
 # ROOT_FLIGHT area.
 #
 TEST_DEP = data/basic/basic.config \
+	data/exception/exception.config \
 	data/fail/fail.config \
 	data/send_mail/send_mail.config \
 	bin/task1.pl bin/task2.pl \
-	bin/watch_cron_logs.pl
+	bin/watch_cron_logs.pl \
+	bin/exception.py
 
 # To 'test', first check that the INSTALL root is not the same as the FLIGHT
 # root with 'check_install' (defined in Makefile.FLIGHT).  Typically this means
@@ -31,6 +33,12 @@ test_basic: check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/basic/task_sched_heart_attack
 	rm -f $(INSTALL)/data/basic/task_sched_disable_alerts
 	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/basic/basic.config -fast 6 -no-email -loud
+
+test_exception:check_install $(TEST_DEP) install
+	rm -f $(INSTALL)/data/exception/task_sched_heartbeat
+	rm -f $(INSTALL)/data/exception/task_sched_heart_attack
+	rm -f $(INSTALL)/data/exception/task_sched_disable_alerts
+	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/exception/exception.config -fast 6 -no-email -loud
 
 test_basic_full: check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/basic/task_sched_heartbeat
