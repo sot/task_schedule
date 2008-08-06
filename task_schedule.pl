@@ -204,12 +204,13 @@ while (-r $opt{heartbeat}) {
 		# Send Alert and Notification as necessary
 		if ($error) {
 		    dbg("WARNING - Task processing error: $error");
-		    dbg send_mail(addr_list => $opt{alert},
-				  subject   => "$opt{subject}: ALERT",
-				  message   => $error,
-				  loud      => 0,
-				  dryrun    => not $opt{email}) unless (-e $opt{disable_alerts});
-		    io($opt{disable_alerts})->touch ;
+                    unless (-e $opt{disable_alerts}) {
+                        dbg(send_mail(addr_list => $opt{alert},
+                                      subject   => "$opt{subject}: ALERT",
+                                      message   => $error,
+                                      loud      => 0,
+                                      dryrun    => not $opt{email})) ;
+                    }
 		}
 
 		my $notify_msg = "Task '$cronjob->{name}' ran at ".localtime()."\n"
@@ -224,6 +225,10 @@ while (-r $opt{heartbeat}) {
 		check_outputs($cronjob) if ($cronjob->{check}
 					    and $time >= $cronjob->{next_check_time}
 					   );
+
+                # After running check_outputs then disable further alerts if needed.
+                io($opt{disable_alerts})->touch if $error;
+
 		exit(0);
 	    }
 	}
