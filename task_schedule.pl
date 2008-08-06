@@ -77,7 +77,7 @@ foreach (qw(data_dir bin_dir log_dir)) {
 
 # Prepend files names with $opt{data_dir} if needed
 for (qw(heartbeat heart_attack disable_alerts)) {
-    if ($opt{$_} !~ m|\A \s* /|x and $opt{data_dir}) {
+    if ($opt{$_} and $opt{$_} !~ m|\A \s* /|x and $opt{data_dir}) {
 	$opt{$_} = "$opt{data_dir}/$opt{$_}";
     }
     dbg "$_=$opt{$_}";
@@ -204,7 +204,7 @@ while (-r $opt{heartbeat}) {
 		# Send Alert and Notification as necessary
 		if ($error) {
 		    dbg("WARNING - Task processing error: $error");
-                    unless (-e $opt{disable_alerts}) {
+                    unless ($opt{disable_alerts} and -e $opt{disable_alerts}) {
                         dbg(send_mail(addr_list => $opt{alert},
                                       subject   => "$opt{subject}: ALERT",
                                       message   => $error,
@@ -226,8 +226,9 @@ while (-r $opt{heartbeat}) {
 					    and $time >= $cronjob->{next_check_time}
 					   );
 
-                # After running check_outputs then disable further alerts if needed.
-                io($opt{disable_alerts})->touch if $error;
+                # After running check_outputs then disable further alerts if there was
+                # an error in the task processing.
+                io($opt{disable_alerts})->touch if $error and $opt{disable_alerts};
 
 		exit(0);
 	    }
@@ -261,7 +262,7 @@ sub check_outputs {
 							master_log => $opt{master_log},
 						      });
     $config > $watch_config;
-    my $email_flag = ($opt{email} && not -e $opt{disable_alerts}) ? '-email' : '-noemail';
+    my $email_flag = ($opt{email} and not $opt{disable_alerts} and not -e $opt{disable_alerts}) ? '-email' : '-noemail';
     my $print_error_flag = $opt{print_error} ? '-printerror' : '';
     my $error = run([ { cmd => "watch_cron_logs.pl $email_flag $print_error_flag -erase -config $watch_config",
 			count => 0,
@@ -272,7 +273,7 @@ sub check_outputs {
 		   );
     if ($error) {
 	dbg("WARNING - Task processing errors found in watch_cron_logs");
-	io($opt{disable_alerts})->touch ;
+	io($opt{disable_alerts})->touch if $opt{disable_alerts};
     }
 
     $watch_config->unlink;
@@ -535,6 +536,7 @@ The example config file below illustrates all the available configuration option
  heartbeat    	task_sched_heartbeat	     # File to ensure sched. running (in data_dir)
  heart_attack 	task_sched_heart_attack      # File to kill task_schedule nicely
  disable_alerts task_sched_disable_alerts    # File to stop alerts from being sent
+ disable_alerts 0                            # If set to a false value then never disable alerts
 
  # Email addresses that receive an alert if there was a severe error in
  # running jobs (i.e. couldn't start jobs or couldn't open log file).
