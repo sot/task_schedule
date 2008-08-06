@@ -28,9 +28,7 @@ use Ska::Process qw(send_mail);
 ##***************************************************************************
 
 $| = 1;
-%ENV = CXC::Envs::Flight::env('ska','tst'); # Adds Ska and TST env to existing ENV
-
-our $VERSION = '$Id: task_schedule.pl,v 1.15 2007-04-09 15:54:09 aca Exp $';
+%ENV = CXC::Envs::Flight::env('ska'); # Adds Ska env to existing ENV
 
 ##***************************************************************************
 ##   Get config and cmd line options
