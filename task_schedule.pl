@@ -1,4 +1,4 @@
-#!/usr/bin/env /proj/sot/ska/bin/perlska
+#!/usr/bin/env /proj/sot/ska/bin/perl
 
 ##***************************************************************************
 # Schedule a set a tasks
