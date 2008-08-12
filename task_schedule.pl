@@ -271,7 +271,14 @@ sub check_outputs {
 		   );
     if ($error) {
 	dbg("WARNING - Task processing errors found in watch_cron_logs");
-	io($opt{disable_alerts})->touch if $opt{disable_alerts};
+        unless ($opt{disable_alerts} and -e $opt{disable_alerts}) {
+            dbg(send_mail(addr_list => $opt{alert},
+                          subject   => "$opt{subject}: WARNING",
+                          message   => $error,
+                          loud      => 0,
+                          dryrun    => not $opt{email})) ;
+            io($opt{disable_alerts})->touch;
+        }
     }
 
     $watch_config->unlink;
