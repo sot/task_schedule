@@ -382,7 +382,11 @@ sub run {
 	    # Close and make sure all is OK.  'die $! ? "A" : "B"' doesn't parse in xemacs)
 	    unless (close CMD) {
 		if ($!) { die "ERROR - Couldn't close $cmd_root pipe: $! \n"; }
-		else    { die "WARNING - '$cmd->{cmd}' returned non-zero status: $?\n"; }
+		else    {
+                    my @exec_out = split("\n", $exec_out);
+                    $exec_out = join("\n", (@exec_out > 50) ? @exec_out[($#exec_out-50..$#exec_out)] : @exec_out);
+                    die "WARNING - '$cmd->{cmd}' returned non-zero status: $?\n$exec_out\n";
+                }
 	    }
 	}
 	alarm 0;
