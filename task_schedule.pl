@@ -266,7 +266,7 @@ sub check_outputs {
     #  1             0              1                 --                   -email
     #  1           <file>           0                 1                    -email
     #  1           <file>           0                 0                    -noemail
-    my $email_flag = $opt{email} and (not $opt{disable_alerts} or not -e $opt{disable_alerts})
+    my $email_flag = ($opt{email} and (not $opt{disable_alerts} or not -e $opt{disable_alerts}))
                       ? '-email' 
                       : '-noemail';
 
