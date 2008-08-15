@@ -260,7 +260,16 @@ sub check_outputs {
 							master_log => $opt{master_log},
 						      });
     $config > $watch_config;
-    my $email_flag = ($opt{email} and not $opt{disable_alerts} and not -e $opt{disable_alerts}) ? '-email' : '-noemail';
+
+    # email     disable_alerts  not_dis_alerts   not -e disable_alerts    email_flag
+    #  0            --             --                 --                   -noemail
+    #  1             0              1                 --                   -email
+    #  1           <file>           0                 1                    -email
+    #  1           <file>           0                 0                    -noemail
+    my $email_flag = $opt{email} and (not $opt{disable_alerts} or not -e $opt{disable_alerts})
+                      ? '-email' 
+                      : '-noemail';
+
     my $print_error_flag = $opt{print_error} ? '-printerror' : '';
     my $error = run([ { cmd => "watch_cron_logs.pl $email_flag $print_error_flag -erase -config $watch_config",
 			count => 0,
