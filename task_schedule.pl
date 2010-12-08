@@ -34,24 +34,27 @@ $| = 1;
 ##   Get config and cmd line options
 ##***************************************************************************
 
-our %opt = (heartbeat      => 'task_sched_heartbeat',
-	    heart_attack   => 'task_sched_heart_attack',
-	    disable_alerts => 'task_sched_disable_alerts',
-	    cron           => '* * * * *',
-	    check_cron     => '0 0 * * *',
-	    email          => 1,
-	    iterations     => 0,   # No limit on iterations
-	    master_log     => 'watch_cron_logs.master',
-	   );
+my $task = 'task_schedule';
+
+our %opt = (master_heart_attack => "$ENV{SKA_DATA}/${task}/master_heart_attack",
+			heartbeat      => 'task_sched_heartbeat',
+			heart_attack   => 'task_sched_heart_attack',
+			disable_alerts => 'task_sched_disable_alerts',
+			cron           => '* * * * *',
+			check_cron     => '0 0 * * *',
+			email          => 1,
+			iterations     => 0,   # No limit on iterations
+			master_log     => 'watch_cron_logs.master',
+			);
 
 GetOptions (\%opt,
-	    'config=s',
-	    'loud!',
-	    'help!',
-	    'email!',
-	    'fast=i',
-	    'iterations=i',
-	   );
+			'config=s',
+			'loud!',
+			'help!',
+			'email!',
+			'fast=i',
+			'iterations=i',
+			);
 
 help(2) if ($opt{help});
 
@@ -60,6 +63,7 @@ help(2) if ($opt{help});
 		    -CComments => 0,
 		   ),
        );
+
 
 ##***************************************************************************
 ## Interpolate (safely) some of the options to allow for generalized paths  
@@ -123,7 +127,9 @@ dbg Dumper \%opt;
 ##***************************************************************************
 ##  Check heart_attack file and exit if the file exists
 ##***************************************************************************
-heart_attack() if (-e $opt{heart_attack});
+heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack});
+heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
+
 
 ##***************************************************************************
 ##  Check heartbeat file and exit gracefully if the file is recent.
@@ -172,7 +178,8 @@ while (my ($name, $task) = each %{$opt{task}}) {
 $SIG{CHLD} = 'IGNORE';		# Avoid zombies from dead children
 while (-r $opt{heartbeat}) {
     # Check within main loop for presense of heart_attack file
-    heart_attack() if (-e $opt{heart_attack});
+	heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack});
+    heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
 
     system("touch $opt{heartbeat}");
     my $pid;
@@ -319,7 +326,8 @@ sub parse_exec {
 ##***************************************************************************
 sub heart_attack {
 ##***************************************************************************
-    dbg "Quit because heart_attack file was found";
+	my $attack_file = shift;
+    dbg "Quit because heart_attack file, $attack_file, was found";
     unlink $opt{heartbeat} if (-w $opt{heartbeat});
     exit(0);
 }
@@ -555,6 +563,11 @@ The example config file below illustrates all the available configuration option
  heart_attack 	task_sched_heart_attack      # File to kill task_schedule nicely
  disable_alerts task_sched_disable_alerts    # File to stop alerts from being sent
  disable_alerts 0                            # If set to a false value then never disable alerts
+
+ ## Master File that will kill all $ENV{SKA} task_schedules nicely 
+ ## (don't change this in the local config unless you really know what you are doing)
+ # master_heart_attack $ENV{SKA_DATA}/task_schedule/master_heart_attack 
+
 
  # Email addresses that receive an alert if there was a severe error in
  # running jobs (i.e. couldn't start jobs or couldn't open log file).
