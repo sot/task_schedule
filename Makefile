@@ -28,41 +28,43 @@ TEST_DEP = data/basic/basic.config \
 # directory via dependency rules defined in Makefile.FLIGHT.  Finally install
 # the task, typically in '.'. 
 
+test: test_basic test_exception test_basic_full test_fail test_send_mail test_send_mail_quiet
+
 test_basic: check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/basic/task_sched_heartbeat
 	rm -f $(INSTALL)/data/basic/task_sched_heart_attack
 	rm -f $(INSTALL)/data/basic/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/basic/basic.config -fast 6 -no-email -loud
+	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/basic/basic.config -fast 6 -no-email -loud
 
 test_exception:check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/exception/task_sched_heartbeat
 	rm -f $(INSTALL)/data/exception/task_sched_heart_attack
 	rm -f $(INSTALL)/data/exception/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/exception/exception.config -fast 6 -no-email -loud
+	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/exception/exception.config -fast 6 -no-email -loud
 
 test_basic_full: check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/basic/task_sched_heartbeat
 	rm -f $(INSTALL)/data/basic/task_sched_heart_attack
 	rm -f $(INSTALL)/data/basic/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/basic/basic.config -loud
+	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/basic/basic.config -loud
 
 test_fail: check_install $(TEST_DEP) install 
 	rm -f $(INSTALL)/data/fail/task_sched_heartbeat
 	rm -f $(INSTALL)/data/fail/task_sched_heart_attack
 	rm -f $(INSTALL)/data/fail/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/fail/fail.config -fast 20 -no-email -loud
+	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/fail/fail.config -fast 20 -loud
 
 test_send_mail: check_install $(TEST_DEP) install 
 	rm -f $(INSTALL)/data/send_mail/task_sched_heartbeat
 	rm -f $(INSTALL)/data/send_mail/task_sched_heart_attack
 	rm -f $(INSTALL)/data/send_mail/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 -loud
+	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 -loud
 
 test_send_mail_quiet: check_install $(TEST_DEP) install 
 	rm -f $(INSTALL)/data/send_mail/task_sched_heartbeat
 	rm -f $(INSTALL)/data/send_mail/task_sched_heart_attack
 	rm -f $(INSTALL)/data/send_mail/task_sched_disable_alerts
-	$(INSTALL_BIN)/task_schedule.pl -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 
+	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 
 
 install:
 	mkdir -p $(INSTALL_BIN); rsync --times --cvs-exclude $(BIN) $(INSTALL_BIN)/

@@ -22,6 +22,7 @@ use POSIX qw(strftime);
 use IO::All;
 use Mail::Send;
 use Ska::Process qw(send_mail);
+
  
 ##***************************************************************************
 ##   Some initialization
@@ -54,7 +55,10 @@ GetOptions (\%opt,
 			'email!',
 			'fast=i',
 			'iterations=i',
+			'alert=s',
+			'notify=s',
 			);
+
 
 help(2) if ($opt{help});
 
@@ -134,7 +138,7 @@ heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
 ##***************************************************************************
 ##  Check heartbeat file and exit gracefully if the file is recent.
 ##***************************************************************************
-if (-e $opt{heartbeat}) {
+if (-r $opt{heartbeat}) {
     my $modify_time = (stat $opt{heartbeat})[9];
 
     # Go quietly into the night if heartbeat file is sufficiently new
@@ -144,7 +148,10 @@ if (-e $opt{heartbeat}) {
     }
 } else {
     # No heartbeat file, so create it
-    system("touch $opt{heartbeat}");
+    eval { 	io($opt{heartbeat})->write(qq{}); };
+    if ($@) {
+		heartbeat_perm_fail($@);
+    }
 }
 
 ##***************************************************************************
@@ -181,7 +188,12 @@ while (-r $opt{heartbeat}) {
 	heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack});
     heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
 
-    system("touch $opt{heartbeat}");
+    # No heartbeat file, so create it
+    eval { 	io($opt{heartbeat})->write(qq{}); };
+    if ($@) {
+		heartbeat_perm_fail($@);
+    }
+
     my $pid;
     my $time = time;
     foreach my $cronjob (@crontab) {
@@ -251,6 +263,21 @@ send_mail(addr_list => $opt{alert},
 	  message   => "Quit because of lost heartbeat",
 	  loud      => $opt{loud},
 	  dryrun    => not $opt{email});
+
+
+##***************************************************************************
+sub heartbeat_perm_fail {
+##***************************************************************************
+	my $err = shift;
+	my $error = "ERROR - Cannot update heartbeat: $err";
+	send_mail(addr_list => $opt{alert},
+		  subject   => "$opt{subject}: ALERT",
+		  message   => $error,
+		  loud      => $opt{loud},
+		  dryrun    => not $opt{email});
+	die "$error\n";
+}
+
 
 ##***************************************************************************
 sub check_outputs {
