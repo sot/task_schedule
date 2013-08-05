@@ -40,6 +40,7 @@ my $task = 'task_schedule';
 our %opt = (master_heart_attack => "$ENV{SKA_DATA}/${task}/master_heart_attack",
 			heartbeat      => 'task_sched_heartbeat',
 			heart_attack   => 'task_sched_heart_attack',
+			no_master_heart_attack   => 'task_sched_no_master_heart_attack',
 			disable_alerts => 'task_sched_disable_alerts',
 			cron           => '* * * * *',
 			check_cron     => '0 0 * * *',
@@ -82,7 +83,7 @@ foreach (qw(data_dir bin_dir log_dir)) {
 }
 
 # Prepend files names with $opt{data_dir} if needed
-for (qw(heartbeat heart_attack disable_alerts)) {
+for (qw(heartbeat heart_attack no_master_heart_attack disable_alerts)) {
     if ($opt{$_} and $opt{$_} !~ m|\A \s* /|x and $opt{data_dir}) {
 	$opt{$_} = "$opt{data_dir}/$opt{$_}";
     }
@@ -131,7 +132,8 @@ dbg Dumper \%opt;
 ##***************************************************************************
 ##  Check heart_attack file and exit if the file exists
 ##***************************************************************************
-heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack});
+heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack} and
+                                            not -e $opt{no_master_heart_attack});
 heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
 
 
@@ -185,7 +187,8 @@ while (my ($name, $task) = each %{$opt{task}}) {
 $SIG{CHLD} = 'IGNORE';		# Avoid zombies from dead children
 while (-r $opt{heartbeat}) {
     # Check within main loop for presense of heart_attack file
-	heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack});
+    heart_attack($opt{master_heart_attack}) if (-e $opt{master_heart_attack} and
+                                                not -e $opt{no_master_heart_attack});
     heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
 
     # No heartbeat file, so create it
@@ -594,6 +597,11 @@ The example config file below illustrates all the available configuration option
  ## Master File that will kill all $ENV{SKA} task_schedules nicely 
  ## (don't change this in the local config unless you really know what you are doing)
  # master_heart_attack $ENV{SKA_DATA}/task_schedule/master_heart_attack 
+
+ ## File that will prevent master_heart_attack from having an effect.  This is for
+ ## some jobs (e.g. Replan Central) that should generally just keep on trying
+ ## because they don't update corruptable data products.
+ # no_master_heart_attack task_sched_no_master_heart_attack
 
 
  # Email addresses that receive an alert if there was a severe error in
