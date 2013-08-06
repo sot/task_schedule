@@ -76,7 +76,7 @@ help(2) if ($opt{help});
 ##***************************************************************************
 our $safe = new Safe;		# Make a safe container for doing evals
 $safe->share('%ENV');
-foreach (qw(data_dir bin_dir log_dir)) {
+foreach (qw(data_dir bin_dir log_dir master_heart_attack)) {
     $opt{$_} = defined $opt{$_} ? $safe->reval(qq/"$opt{$_}"/) : ".";
     dbg "$_=$opt{$_}";
 }
