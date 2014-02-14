@@ -21,7 +21,7 @@ use CXC::Envs::Flight;
 use POSIX qw(strftime);
 use IO::All;
 use Mail::Send;
-use Ska::Process qw(send_mail);
+use Ska::Process qw(send_mail run_tool);
 
  
 ##***************************************************************************
@@ -269,6 +269,23 @@ send_mail(addr_list => $opt{alert},
 
 
 ##***************************************************************************
+sub get_machine_status {
+#
+# In case of a process failure, get a snapshot of the top 20 processes
+# sorted by memory and CPU.
+#
+##***************************************************************************
+    my $out = "\n******** Sorted by resident memory (RSS) ********\n";
+    my %par = (timeout => 5, out => \$out);
+    run_tool('/bin/ps -A -F --sort=-rss | /usr/bin/head -20', \%par);
+    $out .= "\n******** Sorted by CPU ********\n";
+    run_tool('/bin/ps -A -F --sort=-pcpu | /usr/bin/head -20', \%par);
+    $out .= "*********\n\n";
+    return ${$par{out}}
+}
+
+
+##***************************************************************************
 sub heartbeat_perm_fail {
 ##***************************************************************************
 	my $err = shift;
@@ -440,7 +457,12 @@ sub run {
     };
 
     if ($@) {
-	return $@ unless $@ eq "alarm\n"; # propagate unexpected errors
+        my $warning = $@;
+
+        my $machine_status = get_machine_status();
+        print $LOG_FH $machine_status if defined $LOG_FH;
+
+	return $warning . $machine_status unless $warning eq "alarm\n"; # propagate unexpected errors
 
 	my $warning = "WARNING - $cmd_root command timed out ".localtime()."\n";
 	dbg $warning;
