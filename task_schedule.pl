@@ -275,7 +275,8 @@ sub get_machine_status {
 # sorted by memory and CPU.
 #
 ##***************************************************************************
-    my $out = "\n******** Sorted by resident memory (RSS) ********\n";
+    my $out = "\n******** Running on $ENV{HOSTNAME} as $ENV{USER} ********\n";
+    $out .= "\n******** Sorted by resident memory (RSS) ********\n";
     my %par = (timeout => 5, out => \$out);
     run_tool('/bin/ps -A -F --sort=-rss | /usr/bin/head -20', \%par);
     $out .= "\n******** Sorted by CPU ********\n";
