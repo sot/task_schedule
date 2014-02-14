@@ -458,12 +458,12 @@ sub run {
     };
 
     if ($@) {
-        my $warning = $@;
+        my $error = $@;
 
         my $machine_status = get_machine_status();
         print $LOG_FH $machine_status if defined $LOG_FH;
 
-	return $warning . $machine_status unless $warning eq "alarm\n"; # propagate unexpected errors
+	return $error . $machine_status unless $error eq "alarm\n"; # propagate unexpected errors
 
 	my $warning = "WARNING - $cmd_root command timed out ".localtime()."\n";
 	dbg $warning;
