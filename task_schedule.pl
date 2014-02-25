@@ -12,6 +12,7 @@ use strict;
 use File::Basename;
 use Getopt::Long;
 use Config::General;
+use Sys::Hostname ();
 use Data::Dumper;
 use Safe;
 use Schedule::Cron;
@@ -275,7 +276,8 @@ sub get_machine_status {
 # sorted by memory and CPU.
 #
 ##***************************************************************************
-    my $out = "\n******** Running on $ENV{HOSTNAME} as $ENV{USER} ********\n";
+    my $hostname = Sys::Hostname::hostname;
+    my $out = "\n******** Running on $hostname as $ENV{USER} ********\n";
     $out .= "\n******** Sorted by resident memory (RSS) ********\n";
     my %par = (timeout => 5, out => \$out);
     run_tool('/bin/ps -A -F --sort=-rss | /usr/bin/head -20', \%par);
