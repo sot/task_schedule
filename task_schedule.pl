@@ -37,6 +37,7 @@ $| = 1;
 ##***************************************************************************
 
 my $task = 'task_schedule';
+my $hostname = Sys::Hostname::hostname;
 
 our %opt = (master_heart_attack => "$ENV{SKA_DATA}/${task}/master_heart_attack",
 			heartbeat      => 'task_sched_heartbeat',
@@ -151,7 +152,7 @@ if (-r $opt{heartbeat}) {
     }
 } else {
     # No heartbeat file, so create it
-    eval { 	io($opt{heartbeat})->write(qq{}); };
+    eval { 	io($opt{heartbeat})->write(qq{Running on $hostname}); };
     if ($@) {
 		heartbeat_perm_fail($@);
     }
@@ -192,8 +193,8 @@ while (-r $opt{heartbeat}) {
                                                 not -e $opt{no_master_heart_attack});
     heart_attack($opt{heart_attack}) if (-e $opt{heart_attack});
 
-    # No heartbeat file, so create it
-    eval { 	io($opt{heartbeat})->write(qq{}); };
+    # Update heartbeat file
+    eval { 	io($opt{heartbeat})->write(qq{Running on $hostname}); };
     if ($@) {
 		heartbeat_perm_fail($@);
     }
@@ -276,7 +277,6 @@ sub get_machine_status {
 # sorted by memory and CPU.
 #
 ##***************************************************************************
-    my $hostname = Sys::Hostname::hostname;
     my $out = "\n******** Running on $hostname as $ENV{USER} ********\n";
     $out .= "\n******** Sorted by resident memory (RSS) ********\n";
     my %par = (timeout => 5, out => \$out);
