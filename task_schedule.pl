@@ -267,12 +267,11 @@ while (-r $opt{heartbeat}) {
     ##  (minus a minute)
     ##*****************************************************
     my $curr_time = time();
-    my $run_time = $curr_time - $start_time;
-    if ($run_time > (86400 * $opt{max_persistent_days} - 60)){
-        my $days = $run_time / 86400.0;
+    my $run_days = ($curr_time - $start_time + 60) / 86400.0;
+    if ($run_days > $opt{max_persistent_days}) {
         my $message = sprintf(
                               "Ending this task_schedule; job %.2f days old",
-                              $days);
+                              $run_days);
         dbg "$message";
         exit(0);
     }
