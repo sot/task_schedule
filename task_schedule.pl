@@ -38,6 +38,7 @@ $| = 1;
 
 my $task = 'task_schedule';
 my $hostname = Sys::Hostname::hostname;
+my $start_time = time();
 
 our %opt = (master_heart_attack => "$ENV{SKA_DATA}/${task}/master_heart_attack",
 			heartbeat      => 'task_sched_heartbeat',
@@ -49,6 +50,7 @@ our %opt = (master_heart_attack => "$ENV{SKA_DATA}/${task}/master_heart_attack",
 			email          => 1,
 			iterations     => 0,   # No limit on iterations
 			master_log     => 'watch_cron_logs.master',
+                        max_persistent_days => 5,
 			);
 
 GetOptions (\%opt,
@@ -259,6 +261,21 @@ while (-r $opt{heartbeat}) {
 
     # Exit if all the cron tasks have been disabled
     exit(0) unless grep { not $_->{disabled} } @crontab;
+
+    ##*****************************************************
+    ##  Check elapsed run time and exit if over threshold
+    ##  (minus a minute)
+    ##*****************************************************
+    my $curr_time = time();
+    my $run_time = $curr_time - $start_time;
+    if ($run_time > (86400 * $opt{max_persistent_days} - 60)){
+        my $days = $run_time / 86400.0;
+        my $message = sprintf(
+                              "Ending this task_schedule; job %.2f days old",
+                              $days);
+        dbg "$message";
+        exit(0);
+    }
 
     sleep (next_time("* * * * *") - time);
 }
