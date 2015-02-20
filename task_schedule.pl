@@ -15,6 +15,7 @@ use Config::General;
 use Sys::Hostname ();
 use Data::Dumper;
 use Safe;
+use Cwd;
 use Schedule::Cron;
 use IO::File;
 use subs qw(dbg);
@@ -156,7 +157,7 @@ if (-r $opt{heartbeat}) {
     # No heartbeat file, so create it
     eval { 	io($opt{heartbeat})->write(qq{Running on $hostname}); };
     if ($@) {
-		heartbeat_perm_fail($@);
+		email_and_die($@, "ERROR - Cannot update heartbeat");
     }
 }
 
@@ -198,8 +199,19 @@ while (-r $opt{heartbeat}) {
     # Update heartbeat file
     eval { 	io($opt{heartbeat})->write(qq{Running on $hostname}); };
     if ($@) {
-		heartbeat_perm_fail($@);
+		email_and_die($@, "ERROR - Cannot update heartbeat");
     }
+
+    eval{
+        my $cwd = getcwd();
+        if ($cwd eq ''){
+            die "cwd is ''";
+        }
+    };
+    if ($@) {
+        email_and_die($@, "Problem with working dir");
+    }
+
 
     my $pid;
     my $time = time;
@@ -305,16 +317,15 @@ sub get_machine_status {
 
 
 ##***************************************************************************
-sub heartbeat_perm_fail {
+sub email_and_die {
 ##***************************************************************************
-	my $err = shift;
-	my $error = "ERROR - Cannot update heartbeat: $err";
+	my ($spec_err, $err_type) = @_;
 	send_mail(addr_list => $opt{alert},
 		  subject   => "$opt{subject}: ALERT",
-		  message   => $error,
+		  message   => "$err_type: $spec_err\n" ,
 		  loud      => $opt{loud},
 		  dryrun    => not $opt{email});
-	die "$error\n";
+	die "$err_type: $spec_err\n";
 }
 
 
