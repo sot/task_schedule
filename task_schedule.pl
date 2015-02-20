@@ -203,7 +203,7 @@ while (-r $opt{heartbeat}) {
     eval{
         my $cwd = getcwd();
         if ($cwd eq ''){
-            die "cwd is $cwd";
+            die "cwd is ''";
         }
     };
     if ($@) {
