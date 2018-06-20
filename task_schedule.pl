@@ -68,12 +68,18 @@ GetOptions (\%opt,
 
 help(2) if ($opt{help});
 
+# If config <path> is not an absolute path then look for config
+# in $SKA_ARCH_OS/share/<path>.  This is the preferred convention
+# for skare3 packages that are fully installable within arch.
+if (not $opt{config} =~ m|^/|) {
+    $opt{config} = "$ENV{SKA_ARCH_OS}/share/$opt{config}";
+}
+
 %opt = (%opt,
 	ParseConfig(-ConfigFile => $opt{config},
 		    -CComments => 0,
 		   ),
        );
-
 
 ##***************************************************************************
 ## Interpolate (safely) some of the options to allow for generalized paths  
