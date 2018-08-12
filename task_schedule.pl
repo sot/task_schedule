@@ -11,7 +11,7 @@ use warnings;
 use strict;
 use File::Basename;
 use Getopt::Long;
-use Config::General;
+use Config::General qw( ParseConfig );
 use Sys::Hostname ();
 use Data::Dumper;
 use Safe;
