@@ -19,7 +19,6 @@ use Cwd;
 use Schedule::Cron;
 use IO::File;
 use subs qw(dbg);
-use CXC::Envs::Flight;
 use POSIX qw(strftime);
 use IO::All;
 use Mail::Send;
@@ -31,7 +30,7 @@ use Ska::Process qw(send_mail);
 ##***************************************************************************
 
 $| = 1;
-%ENV = CXC::Envs::Flight::env('ska'); # Adds Ska env to existing ENV
+
 
 ##***************************************************************************
 ##   Get config and cmd line options
