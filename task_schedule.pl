@@ -11,7 +11,7 @@ use warnings;
 use strict;
 use File::Basename;
 use Getopt::Long;
-use Config::General;
+use Config::General qw( ParseConfig );
 use Sys::Hostname ();
 use Data::Dumper;
 use Safe;
@@ -19,8 +19,8 @@ use Cwd;
 use Schedule::Cron;
 use IO::File;
 use subs qw(dbg);
-use CXC::Envs::Flight;
 use POSIX qw(strftime);
+use File::Temp;
 use IO::All;
 use Mail::Send;
 use Ska::Process qw(send_mail);
@@ -31,7 +31,7 @@ use Ska::Process qw(send_mail);
 ##***************************************************************************
 
 $| = 1;
-%ENV = CXC::Envs::Flight::env('ska'); # Adds Ska env to existing ENV
+
 
 ##***************************************************************************
 ##   Get config and cmd line options
@@ -322,7 +322,7 @@ sub check_outputs {
 ##***************************************************************************
     my $cronjob = shift;
 
-    my $watch_config = io(POSIX::tmpnam);
+    my $watch_config = io(File::Temp::tmpnam);
     my $log_dir = dirname($cronjob->{log});
     my $config .= Config::General->new()->save_string({ check => $cronjob->{check},
 							alert => $opt{alert},
