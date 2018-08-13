@@ -1,4 +1,4 @@
-#!/usr/bin/env /proj/sot/ska/bin/perl
+#!/usr/bin/env perlska
 
 ##***************************************************************************
 # Schedule a set a tasks
@@ -343,7 +343,7 @@ sub check_outputs {
                       : '-noemail';
 
     my $print_error_flag = $opt{print_error} ? '-printerror' : '';
-    my $error = run([ { cmd => "watch_cron_logs.pl $email_flag $print_error_flag -erase -config $watch_config",
+    my $error = run([ { cmd => "watch_cron_logs3.pl $email_flag $print_error_flag -erase -config $watch_config",
 			count => 0,
 			repeat_count => 1,
 		      }],
