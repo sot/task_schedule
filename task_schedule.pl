@@ -529,7 +529,6 @@ sub help {
     $exitval = 'NOEXIT';
     $verbose = 2;
   }
-  require IO::Pager::Page if $verbose < 2;
   require Pod::Usage;
   Pod::Usage::pod2usage( { -exitval => $exitval, -verbose => $verbose } );
 }
