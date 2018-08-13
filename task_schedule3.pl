@@ -1,4 +1,4 @@
-#!/usr/bin/env perlska
+#!/usr/bin/env perl
 
 ##***************************************************************************
 # Schedule a set a tasks
