@@ -66,9 +66,11 @@ test_send_mail_quiet: check_install $(TEST_DEP) install
 	rm -f $(INSTALL)/data/send_mail/task_sched_disable_alerts
 	perl $(INSTALL_BIN)/task_schedule.pl -alert $(USER) -config $(INSTALL)/data/send_mail/send_mail.config -fast 5 
 
-install3:
-	cp -p task_schedule3.pl $(SKA_ARCH_OS)/bin/
-	chmod +x $(SKA_ARCH_OS)/bin/task_schedule3.pl
+install:
+	mkdir -p $(INSTALL_BIN); rsync --times --cvs-exclude $(BIN) $(INSTALL_BIN)/
+	mkdir -p $(INSTALL_DOC)
+	pod2html task_schedule3.pl > $(INSTALL_DOC)/index.html
+	rm -f pod2htm?.tmp
 
 clean:
 	rm -r bin data doc
