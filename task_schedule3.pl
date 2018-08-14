@@ -322,7 +322,8 @@ sub check_outputs {
 ##***************************************************************************
     my $cronjob = shift;
 
-    my $watch_config = io(File::Temp::tmpnam);
+    my $watch_config_file = File::Temp::tmpnam;
+    my $watch_config = io($watch_config_file);
     my $log_dir = dirname($cronjob->{log});
     my $config .= Config::General->new()->save_string({ check => $cronjob->{check},
 							alert => $opt{alert},
