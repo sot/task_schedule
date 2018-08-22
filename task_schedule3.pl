@@ -1,4 +1,4 @@
-#!/usr/bin/env /proj/sot/ska/bin/perl
+#!/usr/bin/env perl
 
 ##***************************************************************************
 # Schedule a set a tasks
@@ -322,7 +322,8 @@ sub check_outputs {
 ##***************************************************************************
     my $cronjob = shift;
 
-    my $watch_config = io(File::Temp::tmpnam);
+    my $watch_config_file = File::Temp::tmpnam;
+    my $watch_config = io($watch_config_file);
     my $log_dir = dirname($cronjob->{log});
     my $config .= Config::General->new()->save_string({ check => $cronjob->{check},
 							alert => $opt{alert},
@@ -343,7 +344,7 @@ sub check_outputs {
                       : '-noemail';
 
     my $print_error_flag = $opt{print_error} ? '-printerror' : '';
-    my $error = run([ { cmd => "watch_cron_logs.pl $email_flag $print_error_flag -erase -config $watch_config",
+    my $error = run([ { cmd => "watch_cron_logs3.pl $email_flag $print_error_flag -erase -config $watch_config",
 			count => 0,
 			repeat_count => 1,
 		      }],
