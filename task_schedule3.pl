@@ -2,7 +2,7 @@
 
 ##***************************************************************************
 # Schedule a set a tasks
-# 
+#
 # Author:  T. Aldcroft
 # Created: 28-Dec-04
 ##***************************************************************************
@@ -25,12 +25,16 @@ use IO::All;
 use Mail::Send;
 use Ska::Process qw(send_mail);
 
- 
+
 ##***************************************************************************
 ##   Some initialization
 ##***************************************************************************
 
 $| = 1;
+
+if (not defined $ENV{SKA_ARCH_OS}) {
+    chomp($ENV{SKA_ARCH_OS} = `python -c 'import sys; print(sys.prefix)'`);
+}
 
 
 ##***************************************************************************
@@ -41,7 +45,7 @@ my $task = 'task_schedule';
 my $hostname = Sys::Hostname::hostname;
 my $start_time = time();
 
-our %opt = (master_heart_attack => "$ENV{SKA_DATA}/${task}/master_heart_attack",
+our %opt = (master_heart_attack => "$ENV{SKA}/data/${task}/master_heart_attack",
 			heartbeat      => 'task_sched_heartbeat',
 			heart_attack   => 'task_sched_heart_attack',
 			no_master_heart_attack   => 'task_sched_no_master_heart_attack',
@@ -82,7 +86,7 @@ if (not $opt{config} =~ m|^/|) {
        );
 
 ##***************************************************************************
-## Interpolate (safely) some of the options to allow for generalized paths  
+## Interpolate (safely) some of the options to allow for generalized paths
 ## based on environment vars.  Prepend default paths for bin and log directories
 ## if required.
 ##***************************************************************************
@@ -107,10 +111,14 @@ while (my ($name, $task) = each %{$opt{task}}) {
 	$_->{cmd} = $safe->reval(qq/"$_->{cmd}"/);
 
 	# If (after interpolation) the exec isn't an absolute path
-	# and there is a bin_dir defined, then prepend that to path
+	# and there is a bin_dir defined and there is an executable
+    # at bin_dir/cmd, then prepend that to path
 	if (not $_->{cmd} =~ m|\A \s* /|x and $opt{bin_dir}) {
-	    $_->{cmd} = "$opt{bin_dir}/$_->{cmd}";
-	}
+        my ($bin_dir_cmd, @cmd_args) = split(" ", "$opt{bin_dir}/$_->{cmd}");
+	    if (-e $bin_dir_cmd and -x $bin_dir_cmd) {
+            $_->{cmd} = $bin_dir_cmd;
+        }
+    }
     }
 
     # Do the same for the log file, except that a value of undef
@@ -192,7 +200,7 @@ while (my ($name, $task) = each %{$opt{task}}) {
 ##  Fork so each job is launched in a separate process which waits until
 ##  the job finishes or a timeout alarm expires.  The parent just schedules
 ##  the next execution event for the job.
-##  Touch a "heartbeat" file each minute 
+##  Touch a "heartbeat" file each minute
 ##***************************************************************************
 
 $SIG{CHLD} = 'IGNORE';		# Avoid zombies from dead children
@@ -340,7 +348,7 @@ sub check_outputs {
     #  1           <file>           0                 1                    -email
     #  1           <file>           0                 0                    -noemail
     my $email_flag = ($opt{email} and (not $opt{disable_alerts} or not -e $opt{disable_alerts}))
-                      ? '-email' 
+                      ? '-email'
                       : '-noemail';
 
     my $print_error_flag = $opt{print_error} ? '-printerror' : '';
@@ -448,7 +456,7 @@ sub run {
 	    ($cmd_root) = split ' ', $cmd->{cmd};
 	    dbg "Running '$cmd->{cmd}' $cmd->{count} $cmd->{repeat_count}";
 	    $cmd_pid = open CMD, "$cmd->{cmd} 2>&1 |" or die "ERROR - Could not start $cmd_root command: $!\n";
-	
+
 	    my $exec_out = '';
 	    while (<CMD>) {
 		$exec_out .= $_;
@@ -483,7 +491,7 @@ sub run {
 	my $warning = "WARNING - $cmd_root command timed out ".localtime()."\n";
 	dbg $warning;
 	print $LOG_FH $warning;
-				 
+
 	# Kill the cmd process.  See Ska::Process for a more detailed routine that
 	# finds all child processes with same group pid and kills them one at a time.
 	# This is a bad idea here because there may be other "cron" processes with
@@ -554,7 +562,7 @@ task_schedule.pl -config <config_file> [options]
 =item B<-config <config_file>>
 
 This option is mandatory and gives the name of a file containing the
-task scheduler configuration.  This file specifies the jobs to be 
+task scheduler configuration.  This file specifies the jobs to be
 run, email addresses for alerts, and all other program options.
 The test config file (t/data/test.config) has further documentation.
 
@@ -564,7 +572,7 @@ Show exactly what task_schedule is doing
 
 =item B<-no-email>
 
-Print error alerts but do not actually send emails.  
+Print error alerts but do not actually send emails.
 
 =item B<-fast <time>>
 
@@ -590,20 +598,20 @@ manner of crontab.  This tool runs jobs, captures job output in log files and
 make sure jobs finish in a timely manner.  Alerts are sent to an email list if
 any severe errors occur.
 
-The tool can be run interactively for development purposes, but in a production 
-environment it is intended to be run as a regular cron job which is scheduled every 
-minute.  If B<task_schedule> detects that an instance is already successfully running 
-then it simply quits.  This ensures maximum reliability in case of temporary hardware 
+The tool can be run interactively for development purposes, but in a production
+environment it is intended to be run as a regular cron job which is scheduled every
+minute.  If B<task_schedule> detects that an instance is already successfully running
+then it simply quits.  This ensures maximum reliability in case of temporary hardware
 issues or reboots.
 
-To detect another instance of running jobs, B<task_schedule> looks at a "heartbeat" file 
+To detect another instance of running jobs, B<task_schedule> looks at a "heartbeat" file
 that is touched every minute.  If the file is older than a specified age (typically 200
 seconds) then the jobs are not running and B<task_schedule> begins.  Note that the heartbeat
 file is specific to the particular configuration, so there can be multiple
 sets of jobs running as long as none of the files collide.
 
 B<Task_schedule> can be shut down gracefully by deleting its heartbeat file.  (If you
-think suddenly finding yourself without a heartbeat could be graceful).  
+think suddenly finding yourself without a heartbeat could be graceful).
 
 =head1 EXAMPLE
 
@@ -620,21 +628,21 @@ The example config file below illustrates all the available configuration option
  heartbeat_timeout 120                # Maximum age of heartbeat file (seconds)
  iterations        0                  # Maximum task iterations.  Zero => no limit.
  master_log        watch_cron.log     # Master log (from all tasks) if checking is enabled
- 
+
  # Data files and directories.  The *_dir vars can have $ENV{} vars which
  # get interpolated.  The '/task' would be replaced by the actual task name.
 
- data_dir     	$ENV{SKA_DATA}/task          # Data file directory
- log_dir      	$ENV{SKA_DATA}/task/logs     # Log file directory
- bin_dir      	$ENV{SKA_SHARE}/task         # Bin dir (optional, see task def'n)
+ data_dir     	$ENV{SKA}/data/task          # Data file directory
+ log_dir      	$ENV{SKA}/data/task/logs     # Log file directory
+ bin_dir      	$ENV{SKA}/share/task         # Bin dir (optional, see task def'n)
  heartbeat    	task_sched_heartbeat	     # File to ensure sched. running (in data_dir)
  heart_attack 	task_sched_heart_attack      # File to kill task_schedule nicely
  disable_alerts task_sched_disable_alerts    # File to stop alerts from being sent
  disable_alerts 0                            # If set to a false value then never disable alerts
 
- ## Master File that will kill all $ENV{SKA} task_schedules nicely 
+ ## Master File that will kill all $ENV{SKA} task_schedules nicely
  ## (don't change this in the local config unless you really know what you are doing)
- # master_heart_attack $ENV{SKA_DATA}/task_schedule/master_heart_attack 
+ # master_heart_attack $ENV{SKA}/data/task_schedule/master_heart_attack
 
  ## File that will prevent master_heart_attack from having an effect.  This is for
  ## some jobs (e.g. Replan Central) that should generally just keep on trying
@@ -665,8 +673,8 @@ The example config file below illustrates all the available configuration option
  # Define task parameters
  #  cron: Job repetition specification ala crontab.  Defaults to '* * * * *'
  #  check_cron: Crontab specification of log (processing) checks via watch_cron_logs.
- #        Defaults to '0 0 * * *'.  
- #  exec: Name of executable.  Can have $ENV{} vars which get interpolated.  
+ #        Defaults to '0 0 * * *'.
+ #  exec: Name of executable.  Can have $ENV{} vars which get interpolated.
  #        If bin_dir is defined then bin_dir is prepended to non-absolute exec names.
  #  log: Name of log.  Can have $ENV{} vars which get interpolated.
  #        If log is set to '' then no log file will be created (not recommended)
@@ -675,7 +683,7 @@ The example config file below illustrates all the available configuration option
  #  timeout: Maximum time (seconds) for job before timing out
  #  check: Specify reg-ex's to watch for in output from task1.  This is done
  # 	   with a call to watch_cron_logs based on this definition.  Flagged
- # 	   errors are sent to the alert list.  If no <check ..> 
+ # 	   errors are sent to the alert list.  If no <check ..>
  # 	   parameter is given then no checking is done.  See
  # 	   watch_cron_logs doc for more info.  If an alert is sent then further
  #         alerts are disabled until the file specified by disable_alerts
@@ -710,18 +718,18 @@ The example config file below illustrates all the available configuration option
  # executed only once for each <number> of times the task is executed.  In the
  # example below, the commands are done once each 1, 2, and 4 minutes, respectively.
  # The 'context 1' enables print context information in the log file
- # which includes the name and a timestamp for each output. 
+ # which includes the name and a timestamp for each output.
 
  <task task2>
        cron * * * * *
        log  task2_with_nonstandard.log
        exec task1.pl 1
-       exec 2 : $ENV{SKA_BIN}/task1.pl 2
+       exec 2 : $ENV{SKA}/bin/task1.pl 2
        exec 4 : task1.pl 3
        timeout 100
        context 1
  </task>
-  
+
 =head1 AUTHOR
 
 Tom Aldcroft (taldcroft@cfa.harvard.edu)
