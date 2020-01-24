@@ -112,13 +112,13 @@ while (my ($name, $task) = each %{$opt{task}}) {
 
 	# If (after interpolation) the exec isn't an absolute path
 	# and there is a bin_dir defined and there is an executable
-    # at bin_dir/cmd, then prepend that to path
+        # at bin_dir/cmd, then prepend that to path
 	if (not $_->{cmd} =~ m|\A \s* /|x and $opt{bin_dir}) {
-        my ($bin_dir_cmd, @cmd_args) = split(" ", "$opt{bin_dir}/$_->{cmd}");
-	    if (-e $bin_dir_cmd and -x $bin_dir_cmd) {
-            $_->{cmd} = $bin_dir_cmd;
+            my ($bin_dir_cmd, @cmd_args) = split(" ", "$opt{bin_dir}/$_->{cmd}");
+            if (-e $bin_dir_cmd and -x $bin_dir_cmd) {
+                $_->{cmd} = $bin_dir_cmd . " " . join(" ", @cmd_args);
+            }
         }
-    }
     }
 
     # Do the same for the log file, except that a value of undef
