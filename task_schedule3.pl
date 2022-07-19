@@ -59,6 +59,7 @@ our %opt = (master_heart_attack => "$ENV{SKA}/data/${task}/master_heart_attack",
 			);
 
 GetOptions (\%opt,
+            'package=s',
 			'config=s',
 			'loud!',
 			'help!',
@@ -72,10 +73,24 @@ GetOptions (\%opt,
 
 help(2) if ($opt{help});
 
+# Allow a default for the config file. Normally used when -package is supplied.
+if (not $opt{config}) {
+    $opt{config} = "task_schedule.cfg";
+}
+
+# -package option allows specifying the Python package in which the -config file
+# is located.
+if ($opt{package}) {
+    my $pkg = $opt{package};
+    my $cfg_path = qx{python -c 'import ${pkg}, pathlib; print(pathlib.Path(${pkg}.__file__).parent)'};
+    chomp($cfg_path);
+    $opt{config} = "$cfg_path/$opt{config}";
+    print "Using config file $opt{config}\n";
+}
 # If config <path> is not an absolute path then look for config
 # in $SKA_ARCH_OS/share/<path>.  This is the preferred convention
 # for skare3 packages that are fully installable within arch.
-if (not $opt{config} =~ m|^/|) {
+elsif (not $opt{config} =~ m|^/|) {
     $opt{config} = "$ENV{SKA_ARCH_OS}/share/$opt{config}";
 }
 
@@ -559,10 +574,15 @@ task_schedule.pl -config <config_file> [options]
 
 =over 8
 
-=item B<-config <config_file>>
+=item B<-package <package_name>>
+Name of the Python package in which the config file is located. This will set
+the root directory for the config file to site-packages/<package_name> in the
+Python library. More specifically, the code will import the package to discover
+the package top-level __file__ and use that to infer the config file location.
 
-This option is mandatory and gives the name of a file containing the
-task scheduler configuration.  This file specifies the jobs to be
+=item B<-config <config_file>>
+This option gives the name of a file containing the task scheduler configuration
+(default="task_schedule.cfg")  This file specifies the jobs to be
 run, email addresses for alerts, and all other program options.
 The test config file (t/data/test.config) has further documentation.
 
