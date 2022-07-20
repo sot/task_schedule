@@ -575,13 +575,15 @@ task_schedule.pl -config <config_file> [options]
 =over 8
 
 =item B<-package <package_name>>
+
 Name of the Python package in which the config file is located. This will set
 the root directory for the config file to site-packages/<package_name> in the
 Python library. More specifically, the code will import the package to discover
 the package top-level __file__ and use that to infer the config file location.
 
 =item B<-config <config_file>>
-This option gives the name of a file containing the task scheduler configuration
+
+This option gives the name of a file containing the task schedule configuration
 (default="task_schedule.cfg")  This file specifies the jobs to be
 run, email addresses for alerts, and all other program options.
 The test config file (t/data/test.config) has further documentation.
