@@ -85,7 +85,6 @@ if ($opt{package}) {
     my $cfg_path = qx{python -c 'import ${pkg}, pathlib; print(pathlib.Path(${pkg}.__file__).parent)'};
     chomp($cfg_path);
     $opt{config} = "$cfg_path/$opt{config}";
-    print "Using config file $opt{config}\n";
 }
 # If config <path> is not an absolute path then look for config
 # in $SKA_ARCH_OS/share/<path>.  This is the preferred convention
