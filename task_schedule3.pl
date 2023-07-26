@@ -697,6 +697,7 @@ The example config file below illustrates all the available configuration option
  #        Defaults to '0 0 * * *'.
  #  exec: Name of executable.  Can have $ENV{} vars which get interpolated.
  #        If bin_dir is defined then bin_dir is prepended to non-absolute exec names.
+#        Emails need to have the @ escaped as shown below.
  #  log: Name of log.  Can have $ENV{} vars which get interpolated.
  #        If log is set to '' then no log file will be created (not recommended)
  #        If log is not defined it is set to <task_name>.log.
@@ -720,7 +721,7 @@ The example config file below illustrates all the available configuration option
   <task task1>
         cron       * * * * *
         check_cron 0 1 * * *
-        exec task1.pl 20
+        exec task1.pl 20 aca\@cfa.harvard.edu
         timeout 15
         <check>
            <error>
